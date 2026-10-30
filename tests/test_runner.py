@@ -155,6 +155,23 @@ def test_truncation_reported(repo):
     assert any("truncated" in n for n in res.notes)
 
 
+def test_truncation_keeps_every_file_visible(repo, monkeypatch):
+    repo.commit({"src/big.py": "x = 1\n" * 3000, "tests/test_big.py": "def test_x():\n    assert True\n"})
+    captured = {}
+    from acc.backends.fake import FakeBackend
+
+    orig = FakeBackend.ask
+
+    def spy(self, system, prompt, stdin, schema, timeout):
+        captured["stdin"] = stdin
+        return orig(self, system, prompt, stdin, schema, timeout)
+
+    monkeypatch.setattr(FakeBackend, "ask", spy)
+    run(repo, {"*": ans(0.1)}, ("a", check_toml("a")), config="[run]\nmax_diff_chars = 2000\n")
+    assert "def test_x():" in captured["stdin"]  # the small later file is shown whole
+    assert "more characters of this file not shown" in captured["stdin"]
+
+
 def test_max_commits_limits_per_commit(repo):
     for _ in range(4):
         repo.commit()

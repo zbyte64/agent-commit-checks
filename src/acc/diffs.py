@@ -25,11 +25,30 @@ class Context:
     secret_hits: list[secrets.SecretHit] = field(default_factory=list)
 
     def clipped_diff(self, max_chars: int) -> tuple[str, bool]:
+        """Fit the diff in `max_chars`, sharing the budget fairly across files.
+
+        Cutting from the front would hide later files entirely (e.g. tests/ after src/),
+        so small files are kept whole and large ones are clipped with a marker.
+        """
         if len(self.diff) <= max_chars:
             return self.diff, False
-        cut = self.diff[:max_chars]
-        nl = cut.rfind("\n")
-        return (cut[: nl + 1] if nl > 0 else cut), True
+        chunks = [chunk for _, chunk in split_files(self.diff)] or [self.diff]
+        alloc = [0] * len(chunks)
+        remaining = max_chars
+        order = sorted(range(len(chunks)), key=lambda i: len(chunks[i]))
+        for k, i in enumerate(order):
+            alloc[i] = min(len(chunks[i]), remaining // (len(chunks) - k))
+            remaining -= alloc[i]
+        out = []
+        for chunk, budget in zip(chunks, alloc):
+            if budget >= len(chunk):
+                out.append(chunk)
+                continue
+            cut = chunk[:budget]
+            nl = cut.rfind("\n")
+            cut = cut[: nl + 1] if nl > 0 else cut
+            out.append(cut + f"[acc: {len(chunk) - len(cut)} more characters of this file not shown]\n")
+        return "".join(out), True
 
 
 def split_files(diff: str) -> list[tuple[str, str]]:
