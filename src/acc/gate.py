@@ -156,7 +156,30 @@ def claude_output(d: Decision) -> dict | None:
     }
 
 
-FORMATTERS = {"claude": claude_output}
+def omp_output(d: Decision) -> dict:
+    """`{verdict, reason, context, message}` for the omp extension: `reason` blocks the tool
+    call, `context` is passed to the model beside the result, `message` is for the user."""
+    out: dict = {"verdict": d.verdict}
+    if d.verdict == "block":
+        out["reason"] = d.reason
+    elif d.verdict == "warn":
+        out["context"] = d.reason
+    if d.user_message:
+        out["message"] = d.user_message
+    return out
+
+
+def safe_decide(command: str, cwd: Path, agent: str) -> Decision:
+    """`decide`, but every failure becomes a block with the error as the reason."""
+    try:
+        return decide(command, cwd, agent)
+    except ConfigError as e:
+        return Decision("block", f"acc gate: invalid .acc/config.toml: {e}", "acc: gate failed")
+    except Exception as e:  # noqa: BLE001 - the gate must answer, not crash
+        detail = "".join(traceback.format_exception_only(type(e), e)).strip()
+        return Decision("block", f"acc gate failed before reviewing the push: {detail}. "
+                        "Report this to the user; do not try to bypass the check.",
+                        "acc: gate error")
 
 
 def run_claude_hook(stdin_text: str) -> str:
@@ -170,14 +193,10 @@ def run_claude_hook(stdin_text: str) -> str:
         return ""
     command = (payload.get("tool_input") or {}).get("command") or ""
     cwd = Path(payload.get("cwd") or ".")
-    try:
-        decision = decide(command, cwd, "claude")
-    except ConfigError as e:
-        decision = Decision("block", f"acc gate: invalid .acc/config.toml: {e}", "acc: gate failed")
-    except Exception as e:  # noqa: BLE001 - the gate must answer, not crash
-        detail = "".join(traceback.format_exception_only(type(e), e)).strip()
-        decision = Decision("block", f"acc gate failed before reviewing the push: {detail}. "
-                            "Report this to the user; do not try to bypass the check.",
-                            "acc: gate error")
-    out = claude_output(decision)
+    out = claude_output(safe_decide(command, cwd, "claude"))
     return json.dumps(out) if out else ""
+
+
+def run_omp_gate(command: str, cwd: str) -> str:
+    """Entry point for `acc gate --agent omp`. Always returns the extension's JSON, never raises."""
+    return json.dumps(omp_output(safe_decide(command, Path(cwd), "omp")))

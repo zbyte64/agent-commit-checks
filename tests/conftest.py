@@ -51,7 +51,8 @@ class Repo:
     def enable(self, config: str = "", checks: dict[str, str] | None = None, answers: dict | None = None) -> None:
         acc = self.path / ".acc"
         (acc / "checks").mkdir(parents=True, exist_ok=True)
-        base = '[agents.claude]\nbackend = "fake"\n\n[backends.fake]\nanswers = "answers.json"\n'
+        base = ('[agents.claude]\nbackend = "fake"\n\n[agents.omp]\nbackend = "fake"\n\n'
+                '[backends.fake]\nanswers = "answers.json"\n')
         (acc / "config.toml").write_text(base + config)
         for cid, text in (checks or {}).items():
             (acc / "checks" / f"{cid}.toml").write_text(text)
@@ -69,6 +70,31 @@ def repo(tmp_path, monkeypatch) -> Repo:
     r.commit({"README.md": "hello\n"}, "initial")
     r.push("-u", "origin", "main")
     return r
+
+
+def ans(a, summary="s", findings=()):
+    return {"answer": a, "findings": list(findings), "summary": summary}
+
+
+@pytest.fixture
+def enabled(repo):
+    """A repo with acc enabled (one active check, fake backend) and nothing unpushed."""
+    repo.enable(checks={"a": check_toml("a")}, answers={"*": ans(0.1)})
+    repo.git("add", ".acc", "answers.json")
+    repo.git("commit", "-q", "-m", "add acc")
+    repo.push()
+    return repo
+
+
+def set_answers(repo, answers):
+    (repo.path / "answers.json").write_text(json.dumps(answers))
+
+
+def log_rows(tmp_path):
+    rows = []
+    for p in (tmp_path / "logs").rglob("events.jsonl"):
+        rows += [json.loads(line) for line in p.read_text().splitlines()]
+    return rows
 
 
 def check_toml(cid: str, *, qtype: str = "bool", status: str = "active", scope: str = "range",

@@ -5,9 +5,7 @@ import os
 import subprocess
 import sys
 
-import pytest
-
-from tests.conftest import FAKE_AWS_KEY, check_toml
+from tests.conftest import FAKE_AWS_KEY, ans, check_toml, log_rows, set_answers
 
 
 def gate(repo, command, tool="Bash", cwd=None, raw=None):
@@ -20,30 +18,6 @@ def gate(repo, command, tool="Bash", cwd=None, raw=None):
                           capture_output=True, text=True, env=os.environ.copy())
     assert proc.returncode == 0, proc.stderr
     return json.loads(proc.stdout) if proc.stdout.strip() else None
-
-
-def ans(a, summary="s", findings=()):
-    return {"answer": a, "findings": list(findings), "summary": summary}
-
-
-@pytest.fixture
-def enabled(repo):
-    repo.enable(checks={"a": check_toml("a")}, answers={"*": ans(0.1)})
-    repo.git("add", ".acc", "answers.json")
-    repo.git("commit", "-q", "-m", "add acc")
-    repo.push()
-    return repo
-
-
-def set_answers(repo, answers):
-    (repo.path / "answers.json").write_text(json.dumps(answers))
-
-
-def log_rows(tmp_path):
-    rows = []
-    for p in (tmp_path / "logs").rglob("events.jsonl"):
-        rows += [json.loads(line) for line in p.read_text().splitlines()]
-    return rows
 
 
 def test_not_a_push(enabled):

@@ -16,7 +16,7 @@ from . import grading, ops
 from .backends import BackendError, get_backend
 from .checks import CheckError
 from .config import ConfigError, home_relative
-from .gate import format_result, run_claude_hook
+from .gate import format_result, run_claude_hook, run_omp_gate
 from .git import GitError
 from .grading import GradeError
 
@@ -39,12 +39,17 @@ def _acc_path() -> str:
 
 
 def cmd_gate(a: argparse.Namespace) -> int:
-    if a.agent != "claude":
-        return _err(f"gate for agent {a.agent!r} is not implemented in this build")
-    out = run_claude_hook(sys.stdin.read())
-    if out:
-        print(out)
-    return 0
+    if a.agent == "claude":
+        out = run_claude_hook(sys.stdin.read())
+        if out:
+            print(out)
+        return 0
+    if a.agent == "omp":
+        if a.command is None:
+            return _err("gate --agent omp needs --command (and --cwd)")
+        print(run_omp_gate(a.command, a.cwd or os.getcwd()))
+        return 0
+    return _err(f"no gate for agent {a.agent!r}; use claude or omp")
 
 
 def cmd_run(a: argparse.Namespace) -> int:
@@ -276,8 +281,10 @@ def build_parser() -> argparse.ArgumentParser:
     def agent_arg(sp: argparse.ArgumentParser) -> None:
         sp.add_argument("--agent", default="claude", help="agent whose backend to use (default: claude)")
 
-    sp = sub.add_parser("gate", help="decide on an agent's push (reads hook JSON on stdin)")
+    sp = sub.add_parser("gate", help="decide on an agent's push (claude: hook JSON on stdin; omp: --command)")
     agent_arg(sp)
+    sp.add_argument("--command", help="omp: the bash command about to run")
+    sp.add_argument("--cwd", help="omp: the directory it runs in (default: current directory)")
     sp.set_defaults(fn=cmd_gate)
 
     sp = sub.add_parser("run", help="run checks on demand")
