@@ -9,12 +9,16 @@ inputs = ["diff", "message"]
 
 [question]
 type = "choice"
-instructions = "Does the commit message accurately describe the commit's changes? Judge the substance, not the style; a short message that names the main change is accurate."
-labels = { accurate = "Message matches the changes", partial = "Message omits notable changes", wrong = "Message describes something else" }
+instructions = """Would someone who reads only this commit message be misled about what the commit does?
+A commit message is a summary. It is accurate when it names the main change, even if it leaves out work that supports that change: tests, fixtures, docs, config or template updates, helper functions, refactors, renames, and small fixes needed to make the main change work. Do not list such omissions.
+Answer `incomplete` only when the diff also changes how the program behaves in a separate way (a feature, behavior change or fix that is not part of the described change) and the message does not mention it at all. Tests, docs and comments are never a separate change, even when they cover a different feature.
+Answer `wrong` when the message describes changes the diff does not make, or does not describe the main change.
+If the diff is truncated, do not assume the hidden part contradicts the message."""
+labels = { accurate = "Names the main change; anything left out supports it", incomplete = "Leaves out a separate change the diff also makes", wrong = "Describes something the diff does not do" }
 
 [verdict]
 accurate = "pass"
-partial = "warn"
+incomplete = "block"
 wrong = "block"
 
 [grading]

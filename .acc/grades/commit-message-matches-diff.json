@@ -1,0 +1,232 @@
+{
+  "check_id": "commit-message-matches-diff",
+  "check_sha256": "06749ff9226dfdb5062e7f4d144da092367bc850b456ae02eeacc7e14af410d0",
+  "graded_at": "2026-10-30T19:43:08Z",
+  "head": "1ef0c3aac5b0612c7a5aac8c6ff03db9efffed0c",
+  "backend": "omp",
+  "model": "@decision",
+  "selection": {
+    "mode": "auto"
+  },
+  "excluded": [],
+  "bars": {
+    "min_sample": 10,
+    "max_block_rate": 0.1,
+    "max_unstable": 1,
+    "sample_size": 20
+  },
+  "metrics": {
+    "sample_size": 20,
+    "pool_size": 33,
+    "block_rate": 0.0,
+    "blocked": 0,
+    "error_rate": 0.0,
+    "errors": 0,
+    "unstable": 0,
+    "catch_rate": null,
+    "calls": 20
+  },
+  "result": "pass",
+  "sample": [
+    {
+      "sha": "dacd7cd00c7a0b67928eeeb553f8f34dc9c0c732",
+      "reason": "top-score",
+      "score": 15,
+      "answer": "accurate",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The message names the main change (check file format, config loading, and sample checks), and the diff adds exactly those components, with tests and templates as supporting work.",
+      "findings": []
+    },
+    {
+      "sha": "8999b9023a6e6e8e62f2c535d3b16bfbf3592974",
+      "reason": "top-score",
+      "score": 11,
+      "answer": "accurate",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The message names the main change (a review runner with batched calls and claude/fake backends), and the visible diff supports it; the supporting tests and fixtures are not separate changes.",
+      "findings": []
+    },
+    {
+      "sha": "2e655007f369eda51b7960849f11191e1f26a3bc",
+      "reason": "top-score",
+      "score": 8,
+      "answer": "accurate",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The message names the main change (commit grading on chosen commits or a range with the selection recorded and promote restriction for agents), and the diff's other pieces (README, CLI wiring, MCP tool params, tests, GradeError plumbing) support that change.",
+      "findings": []
+    },
+    {
+      "sha": "aa7f49eaac5eaa890809c10ed076549c8dbf1779",
+      "reason": "top-score",
+      "score": 6,
+      "answer": "accurate",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The message names the main change, an omp backend that answers checks through `omp -p`, and the diff's supporting work (config defaults, fixtures, tests) is covered by that summary.",
+      "findings": []
+    },
+    {
+      "sha": "4effdf15a448176e68391a804df96a4ef82d2d02",
+      "reason": "top-score",
+      "score": 6,
+      "answer": "accurate",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The message names the main change (expanding ~ and $HOME in backend command paths and having acc init write home-relative paths), and the remaining changes (docs, template, tests, helper functions) directly support it.",
+      "findings": []
+    },
+    {
+      "sha": "85f325b6d00299638c2cb56a81aff4e73a5ff18d",
+      "reason": "top-score",
+      "score": 6,
+      "answer": "accurate",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The message names the max-turns headroom change and the single-entry retry change, and the diff makes exactly those changes along with supporting tests, docs, and a fake-backend retryable mode.",
+      "findings": []
+    },
+    {
+      "sha": "ddc489c26ed7bb231c2719260d626a15e6890806",
+      "reason": "top-score",
+      "score": 5,
+      "answer": "accurate",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The message names the main change (acc init --omp setup and acc doctor --agent omp checks), and the diff's supporting work (config template, helper functions, tests) is covered by that description.",
+      "findings": []
+    },
+    {
+      "sha": "15f110b4ab245d5decb5f30788d9e32b1c8373a9",
+      "reason": "top-score",
+      "score": 5,
+      "answer": "accurate",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The message names the main change (an omp extension gating git push through acc, with block/warn mapping and fail-closed behavior), and the CI bun setup, Python helper, harness, and tests are supporting work for that change.",
+      "findings": []
+    },
+    {
+      "sha": "edb4fc4e630203d10982820c43e15a7b05b51679",
+      "reason": "top-score",
+      "score": 5,
+      "answer": "accurate",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The message names the main change (adding `acc gate --agent omp` with --command/--cwd output and shared fail-closed handling) and the dropped FORMATTERS table; the test and conftest refactors support it, and no separate unmentioned behavior change appears in the diff.",
+      "findings": []
+    },
+    {
+      "sha": "896307994e5b33fafb04ac5daa10972dac990d46",
+      "reason": "top-score",
+      "score": 5,
+      "answer": "accurate",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The message names the main change (adding the acc CLI and the Claude Code PreToolUse gate), and the visible diff shows cli.py, gate.py, log.py and tests for those, with nothing clearly separate left out.",
+      "findings": []
+    },
+    {
+      "sha": "2bc13495e58e99ad4cddcf6bfe285d928e0d6720",
+      "reason": "random",
+      "score": 2,
+      "answer": "accurate",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The message names the main change (disabling extended thinking in spawned claude -p calls), and the test update and the settings-constant refactor are supporting work for that change.",
+      "findings": []
+    },
+    {
+      "sha": "d3efa5f6854f7de96af2046647d33cc372ed2a98",
+      "reason": "random",
+      "score": 1,
+      "answer": "accurate",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The message names the main change (documenting the omp setup and how the omp backend differs from the handoff), and the rest of the diff is README content supporting that documentation, with no separate unmentioned behavior change.",
+      "findings": []
+    },
+    {
+      "sha": "54e828ee518bf4be5df6be22bb1359b13aab5352",
+      "reason": "random",
+      "score": 3,
+      "answer": "accurate",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The message names the main change (forcing thinking off in claude -p calls), and the README, test, and env-override plumbing all support that change without any separate unmentioned behavior change.",
+      "findings": []
+    },
+    {
+      "sha": "f52befc2eec6ffbb10f998a545749111dae2bebf",
+      "reason": "random",
+      "score": 2,
+      "answer": "accurate",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The message describes heredoc-body handling and quoted-email redirect parsing, which is what the diff implements, and the added tests only cover those same behaviors.",
+      "findings": []
+    },
+    {
+      "sha": "14bcef9e12cd9268e5bd224d762203c40c7f155b",
+      "reason": "random",
+      "score": 2,
+      "answer": "accurate",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The message names the main change (enabling the omp gate via a [backends.omp] config entry and ignoring .omp/mcp.json), and the diff does only that, with no separate unmentioned behavior change.",
+      "findings": []
+    },
+    {
+      "sha": "dbbae10840d1de7e203c324309f3f38557948557",
+      "reason": "random",
+      "score": 3,
+      "answer": "accurate",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The message names the new git helper module and the git push command parser, which are the diff's main additions, and the tests cover that same parser.",
+      "findings": []
+    },
+    {
+      "sha": "1ef0c3aac5b0612c7a5aac8c6ff03db9efffed0c",
+      "reason": "random",
+      "score": 4,
+      "answer": "accurate",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The message names the main change (per-commit batching in model calls, so checks for different commits never share a call), and the README, runner batching, and test updates all support that change.",
+      "findings": []
+    },
+    {
+      "sha": "1677d486fc8872e1254f449e38160e247687adcf",
+      "reason": "random",
+      "score": 2,
+      "answer": "accurate",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The message names the main change (porting the secret scan from dev-decisions), and the added test file, the glob tests, and the redaction/line-tracking helpers all support that port without being separate unlisted changes.",
+      "findings": []
+    },
+    {
+      "sha": "fed3cf69c6122cbe6f074c3d6309fed1ac3a2130",
+      "reason": "random",
+      "score": 1,
+      "answer": "accurate",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The message names the only change in the diff, switching the claude backend command from an absolute path to a ~-relative path, and the diff makes no other behavioral change.",
+      "findings": []
+    },
+    {
+      "sha": "272fbc44cb58e6eaf108f4e13bd12e6247f607b7",
+      "reason": "random",
+      "score": 2,
+      "answer": "accurate",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The message names the main change, adding an MCP server that exposes checks as tools, and the diff's additional content (tests for the server) supports that change rather than being a separate unmentioned change.",
+      "findings": []
+    }
+  ]
+}
