@@ -1,8 +1,10 @@
 # agent-commit-checks project config. Binary paths are per machine, so prefer
 # absolute paths (hooks launched from VS Code may not see your shell PATH).
+# `~` and environment variables such as `$HOME` are expanded, so the committed
+# file does not need to name a user.
 
 [backends.claude]
-command = "/home/you/.local/bin/claude"
+command = "~/.local/bin/claude"
 model = "haiku"
 
 # Route an agent to a different backend, e.g. the fake backend in tests:

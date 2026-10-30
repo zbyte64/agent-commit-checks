@@ -18,6 +18,10 @@ acc --help
 Use the absolute path of the installed `acc` in hook and MCP configs. A process started from
 VS Code may not see your shell `PATH`.
 
+In `.acc/config.toml`, backend `command` paths may use `~` or environment variables such as
+`$HOME` (e.g. `command = "~/.local/bin/claude"`). The file is committed, so it doesn't need
+to name a user. `acc init` writes paths under your home directory this way.
+
 ## Set up a project
 
 ```sh

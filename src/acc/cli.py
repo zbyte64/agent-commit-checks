@@ -15,7 +15,7 @@ from . import checks as checks_mod
 from . import grading, ops
 from .backends import BackendError, get_backend
 from .checks import CheckError
-from .config import ConfigError
+from .config import ConfigError, home_relative
 from .gate import format_result, run_claude_hook
 from .git import GitError
 
@@ -169,7 +169,9 @@ def cmd_init(a: argparse.Namespace) -> int:
     if not cfg_path.exists():
         text = (tpl / "config.toml").read_text()
         # Keep the launcher path: resolving symlinks would pin a versioned binary that auto-update removes.
-        cfg_path.write_text(text.replace("__CLAUDE__", str(Path(claude).absolute()) if claude else "claude"))
+        # Write it relative to ~ so the committed config names no username.
+        command = home_relative(str(Path(claude).absolute())) if claude else "claude"
+        cfg_path.write_text(text.replace("__CLAUDE__", command))
         created.append(cfg_path)
     for name in ("no-debug-leftovers.toml", "commit-message-matches-diff.toml"):
         dest = acc_dir / "checks" / name

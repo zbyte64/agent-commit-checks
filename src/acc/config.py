@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -98,6 +99,18 @@ class Config:
         return self.data.get("backends", {}).get(name, {})
 
 
+def expand_path(value: str) -> str:
+    """Expand `~` and environment variables such as `$HOME`, so a committed config
+    can name per-user binaries without hard-coding a username."""
+    return os.path.expanduser(os.path.expandvars(value))
+
+
+def home_relative(path: str) -> str:
+    """The inverse for display: `/home/me/.local/bin/x` becomes `~/.local/bin/x`."""
+    home = str(Path.home())
+    return "~" + path[len(home):] if path == home or path.startswith(home + os.sep) else path
+
+
 def load_config(root: Path) -> Config:
     path = root / ACC_DIR / "config.toml"
     data: dict = {}
@@ -107,6 +120,9 @@ def load_config(root: Path) -> Config:
         except tomllib.TOMLDecodeError as e:
             raise ConfigError(f"{path}: {e}") from e
     cfg = Config(root=root, data=_merge(DEFAULTS, data))
+    for backend in cfg.data["backends"].values():
+        if isinstance(backend.get("command"), str):
+            backend["command"] = expand_path(backend["command"])
     if cfg.run["on_backend_error"] not in ("warn", "block"):
         raise ConfigError("run.on_backend_error must be 'warn' or 'block'")
     return cfg
