@@ -108,6 +108,32 @@ def test_shell_c_recursion():
     assert p.pushes[0].cwd == "repo"
 
 
+def test_heredoc_body_is_data():
+    # Unbalanced quotes inside a heredoc used to make the whole command "unknown".
+    cmd = ("python3 - <<'EOF'\ns = open('t.py').read()\ns = s.replace('''a''', '''b\n"
+           '    gate(enabled, "git push")\n''\')\nEOF\nuv run pytest -q')
+    assert parse_command(cmd).kind == "none"
+    assert parse_command("cat > notes.txt <<EOF\nremember to git push\nEOF").kind == "none"
+    assert parse_command("cat <<-EOF\n\tgit push origin main\n\tEOF\necho done").kind == "none"
+
+
+def test_heredoc_fed_to_shell_is_parsed():
+    p = parse_command("bash <<'EOF'\ncd repo\ngit push origin main\nEOF")
+    assert p.kind == "push"
+    assert p.pushes[0].refspecs == ["main"]
+
+
+def test_email_in_quoted_message_is_not_a_redirect():
+    msg = 'git commit -qm "Fix\n\nCo-Authored-By: Claude <noreply@anthropic.com>"'
+    assert parse_command(msg + " && git push").kind == "commit_and_push"
+    assert parse_command('git tag -m "by <a@b.c>" v1; git push origin main').kind == "push"
+
+
+def test_heredoc_then_push_on_later_line():
+    p = parse_command("cat > f.txt <<EOF\ndon't\nEOF\ngit push origin main")
+    assert p.kind == "push"
+
+
 def test_subshell():
     p = parse_command("(cd sub && git push origin main)")
     assert p.kind == "push"

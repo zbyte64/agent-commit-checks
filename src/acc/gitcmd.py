@@ -56,7 +56,41 @@ class ParsedCommand:
 
 # Redirections such as `2>&1`, `>out.log`, `&>/dev/null`; dropped before tokenizing
 # so their targets are not mistaken for push arguments.
-REDIRECT = re.compile(r"(?<![\w>-])\d*(?:&>>?|>>?&?|<<<|<<-?|<&?)\s*(?:&?\d+-?(?=[\s;&|)]|$)|[^\s;&|()]+)")
+# Targets never swallow quote characters, so a `<name@host>` inside a quoted commit
+# message cannot eat the closing quote.
+REDIRECT = re.compile(r"(?<![\w>-])\d*(?:&>>?|>>?&?|<<<|<<-?|<&?)\s*(?:&?\d+-?(?=[\s;&|)]|$)|[^\s;&|()'\"]+)")
+
+
+HEREDOC = re.compile(r"(?<!<)<<(-?)\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
+FEEDS_SHELL = re.compile(r"(?:^|[\s;&|(])(?:ba|z|da|k)?sh(?:\s+-\w+)*\s*$")
+
+
+def _strip_heredocs(command: str) -> str:
+    """Drop heredoc bodies, which are data rather than commands.
+
+    A body fed to a shell (`bash <<EOF`) does run as commands, so it is kept and
+    appended as extra command lines.
+    """
+    lines = command.split("\n")
+    out: list[str] = []
+    shell_bodies: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        out.append(line)
+        i += 1
+        for m in HEREDOC.finditer(line):
+            strip_tabs, delim = m.group(1), m.group(3)
+            body = []
+            while i < len(lines):
+                current = lines[i]
+                i += 1
+                if (current.lstrip("\t") if strip_tabs else current) == delim:
+                    break
+                body.append(current)
+            if FEEDS_SHELL.search(line[: m.start()]):
+                shell_bodies.extend(body)
+    return "\n".join(out + shell_bodies)
 
 
 def _tokenize(command: str) -> list[str]:
@@ -145,7 +179,7 @@ def _has_expansion(tokens: list[str]) -> bool:
 
 def _parse(command: str, depth: int = 0) -> ParsedCommand:
     try:
-        tokens = _tokenize(command.replace("\n", " ; "))
+        tokens = _tokenize(_strip_heredocs(command).replace("\n", " ; "))
     except ValueError as e:
         return ParsedCommand("unknown", reason=f"could not parse the command ({e})")
 
