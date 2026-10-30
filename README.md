@@ -82,9 +82,12 @@ holds hashes and sizes only, never diff text or secrets.
 - The `claude -p` call uses `--max-turns 2`. Structured output takes a StructuredOutput tool
   call plus a final turn, and `--max-turns 1` ends in `error_max_turns`.
 - `--tools ""` disables all tools (an open question in the handoff). The call also uses
-  `--strict-mcp-config`, `--setting-sources ""`, `--system-prompt`, and
-  `alwaysThinkingEnabled: false`. Together these flags cut a call from about 86K input
-  tokens and $0.11 to about 2.4K tokens and $0.006, and to 4–6s.
+  `--strict-mcp-config`, `--setting-sources ""` and `--system-prompt`. Together these flags
+  cut a call from about 86K input tokens and $0.11 to about 2.4K tokens and $0.006.
+- Thinking is always off, so Claude behaves like a decision model and returns the typed
+  answer directly (4–6s per call). The call sets `alwaysThinkingEnabled: false` and
+  `MAX_THINKING_TOKENS=0`. The second is needed because hooks inherit the agent's
+  environment, where `MAX_THINKING_TOKENS` would turn thinking back on.
 - The parser accepts both output shapes: a single result object, and the event array
   produced when verbose output is on.
 - Secret-scan `warn` patterns (env-var dumps, password assignments) do not block. Matching

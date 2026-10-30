@@ -56,3 +56,18 @@ def test_argv_flags():
 def test_missing_binary():
     with pytest.raises(BackendError, match="not found"):
         ClaudeBackend({"command": "/nonexistent/claude"}).ask("s", "p", "", {"type": "object"}, 5)
+
+
+def test_thinking_forced_off_even_if_agent_env_enables_it(monkeypatch):
+    import subprocess
+
+    monkeypatch.setenv("MAX_THINKING_TOKENS", "8000")
+    seen = {}
+
+    def fake_run(argv, **kw):
+        seen["env"] = kw["env"]
+        return subprocess.CompletedProcess(argv, 0, fixture("claude_success_object.json"), "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    ClaudeBackend({}).ask("s", "p", "", {"type": "object"}, 5)
+    assert seen["env"]["MAX_THINKING_TOKENS"] == "0"

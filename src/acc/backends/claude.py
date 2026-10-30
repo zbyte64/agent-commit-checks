@@ -6,6 +6,7 @@ Never pass `--bare`: it skips OAuth and keychain credentials.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 
 from ..prompt import schema_json
@@ -14,9 +15,12 @@ from . import BackendError
 # Structured output needs a second turn: the model calls the StructuredOutput tool,
 # then the run ends. With --max-turns 1 the result is error_max_turns.
 MAX_TURNS = "2"
-# No hooks in the spawned run (so this gate cannot recurse), and no extended
-# thinking: it roughly doubled latency for these short classification answers.
+# No hooks in the spawned run, so this gate cannot recurse.
+# Thinking is always off: the backend imitates a decision model, which returns a
+# typed answer directly. The setting alone is not enough, because hooks inherit the
+# agent's environment and a MAX_THINKING_TOKENS there turns thinking back on.
 SETTINGS = '{"disableAllHooks": true, "alwaysThinkingEnabled": false}'
+ENV_OVERRIDES = {"MAX_THINKING_TOKENS": "0"}
 
 
 class ClaudeBackend:
@@ -50,6 +54,7 @@ class ClaudeBackend:
                 capture_output=True,
                 text=True,
                 timeout=timeout,
+                env={**os.environ, **ENV_OVERRIDES},
             )
         except FileNotFoundError as e:
             raise BackendError(f"claude CLI not found at {self.command!r}") from e
