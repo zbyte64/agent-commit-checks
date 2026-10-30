@@ -7,7 +7,12 @@
 command = "__CLAUDE__"
 model = "haiku"
 
-# Route an agent to a different backend, e.g. the fake backend in tests:
+[backends.omp]
+command = "__OMP__"
+model = "@decision"        # omp role alias: set modelRoles.decision in ~/.omp/agent/config.yml
+
+# Each agent uses its own CLI by default. Route an agent to a different backend,
+# e.g. the fake backend in tests:
 # [agents.claude]
 # backend = "fake"
 

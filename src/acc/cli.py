@@ -12,10 +12,10 @@ from importlib import resources
 from pathlib import Path
 
 from . import checks as checks_mod
-from . import grading, ops
+from . import grading, omp_setup, ops
 from .backends import BackendError, get_backend
 from .checks import CheckError
-from .config import ConfigError, home_relative
+from .config import ConfigError, home_relative, load_config
 from .gate import format_result, run_claude_hook, run_omp_gate
 from .git import GitError
 from .grading import GradeError
@@ -170,6 +170,7 @@ def cmd_init(a: argparse.Namespace) -> int:
     acc_dir = root / ".acc"
     tpl = resources.files("acc") / "templates"
     claude = shutil.which("claude")
+    omp = shutil.which("omp")
     created = []
     (acc_dir / "checks").mkdir(parents=True, exist_ok=True)
     (acc_dir / "grades").mkdir(parents=True, exist_ok=True)
@@ -181,8 +182,11 @@ def cmd_init(a: argparse.Namespace) -> int:
         text = (tpl / "config.toml").read_text()
         # Keep the launcher path: resolving symlinks would pin a versioned binary that auto-update removes.
         # Write it relative to ~ so the committed config names no username.
-        command = home_relative(str(Path(claude).absolute())) if claude else "claude"
-        cfg_path.write_text(text.replace("__CLAUDE__", command))
+        def launcher(found: str | None, name: str) -> str:
+            return home_relative(str(Path(found).absolute())) if found else name
+
+        cfg_path.write_text(text.replace("__CLAUDE__", launcher(claude, "claude"))
+                            .replace("__OMP__", launcher(omp, "omp")))
         created.append(cfg_path)
     for name in ("no-debug-leftovers.toml", "commit-message-matches-diff.toml"):
         dest = acc_dir / "checks" / name
@@ -193,10 +197,44 @@ def cmd_init(a: argparse.Namespace) -> int:
         print(f"created {p.relative_to(root)}")
     if not created:
         print(".acc/ already set up; nothing created.")
+    if a.omp:
+        return _init_omp(root)
     if not claude:
         print("warning: `claude` not found on PATH; set backends.claude.command to its absolute path.")
     print()
     print(_snippets(_acc_path()))
+    print("For oh-my-pi, run `acc init --omp`.")
+    return 0
+
+
+def _init_omp(root: Path) -> int:
+    acc = _acc_path()
+    cfg = load_config(root)
+    settings = cfg.backend_settings("omp")
+    omp, model = settings["command"], settings["model"]
+    if not (os.path.isabs(omp) or shutil.which(omp)):
+        print("warning: `omp` not found on PATH; set backends.omp.command to its absolute path.")
+    dest, status = omp_setup.install_extension(acc)
+    print(f"{status} omp extension {dest} (calls {acc})")
+    print()
+    if model.startswith("@"):
+        role = model[1:]
+        roles = omp_setup.config_get(omp, "modelRoles", root)
+        if isinstance(roles, dict) and roles.get(role):
+            print(f"omp role {model} -> {roles[role]}")
+        else:
+            print(f"omp role {model} is not set. Add it to ~/.omp/agent/config.yml (or a project "
+                  f".omp/config.yml), or pick it in omp's /model Roles view:\n\n"
+                  f"modelRoles:\n  {role}: anthropic/claude-haiku-5-5\n")
+    budget = omp_setup.gate_budget_ms(float(cfg.run["timeout_seconds"]))
+    current = omp_setup.config_get(omp, "extensionHandlers.toolCallTimeoutMs", root)
+    if not isinstance(current, (int, float)) or current < budget:
+        print(f"omp stops tool_call handlers after {current or 30000} ms and then blocks the push. "
+              f"Give the gate {budget} ms:\n\n  {omp} config set extensionHandlers.toolCallTimeoutMs {budget}\n")
+    mcp = {"mcpServers": {"acc": {"command": acc, "args": ["mcp", "--agent", "omp"]}}}
+    print("MCP server: add to .omp/mcp.json in the project root (or ~/.omp/agent/mcp.json for all "
+          "projects):\n\n" + json.dumps(mcp, indent=2) + "\n")
+    print("Restart omp to load the extension, then run `acc doctor --agent omp`.")
     return 0
 
 
@@ -230,18 +268,32 @@ def cmd_doctor(a: argparse.Namespace) -> int:
 
     name = cfg.backend_for(a.agent)
     report(True, f"agent {a.agent!r} uses backend {name!r}")
-    if name == "claude":
-        cmd = cfg.backend_settings("claude").get("command", "claude")
-        report(os.path.isabs(cmd), f"backends.claude.command is absolute: {cmd}", warn_only=True)
+
+    def binary(backend: str) -> str | None:
+        cmd = cfg.backend_settings(backend).get("command", backend)
+        report(os.path.isabs(cmd), f"backends.{backend}.command is absolute: {cmd}", warn_only=True)
         path = cmd if os.path.isabs(cmd) else shutil.which(cmd)
         exists = bool(path) and os.access(path, os.X_OK)
-        report(exists, f"claude binary is executable: {path or cmd}")
-        if exists:
+        report(exists, f"{backend} binary is executable: {path or cmd}")
+        return path if exists else None
+
+    if name == "claude":
+        path = binary("claude")
+        if path:
             ver = subprocess.run([path, "--version"], capture_output=True, text=True).stdout.strip()
             v = _version_tuple(ver)
             report(bool(v) and v >= MIN_HOOK_VERSION,
                    f"Claude Code {ver or '?'}; hook `args`/`if`/`onFailure` need "
                    f"{'.'.join(map(str, MIN_HOOK_VERSION))}+", warn_only=True)
+    elif name == "omp":
+        path = binary("omp")
+        model = cfg.backend_settings("omp")["model"]
+        if path and model.startswith("@"):
+            roles = omp_setup.config_get(path, "modelRoles", root)
+            target = roles.get(model[1:]) if isinstance(roles, dict) else None
+            report(bool(target), f"omp role {model} -> {target}" if target else
+                   f"omp role {model} is not set: add modelRoles.{model[1:]} to ~/.omp/agent/config.yml "
+                   "(see `acc init --omp`)", warn_only=True)
 
     if not a.offline:
         try:
@@ -253,13 +305,35 @@ def cmd_doctor(a: argparse.Namespace) -> int:
         except BackendError as e:
             report(False, f"test call failed: {e}")
 
-    settings = [Path.home() / ".claude" / "settings.json", root / ".claude" / "settings.local.json",
-                root / ".claude" / "settings.json"]
-    hooked = [str(p) for p in settings if p.exists() and "gate" in p.read_text() and "acc" in p.read_text()]
-    report(bool(hooked), "PreToolUse hook found in " + (", ".join(hooked) if hooked else
-                                                        "no Claude Code settings file (see `acc init`)"),
-           warn_only=True)
+    if a.agent == "claude":
+        settings = [Path.home() / ".claude" / "settings.json", root / ".claude" / "settings.local.json",
+                    root / ".claude" / "settings.json"]
+        hooked = [str(p) for p in settings if p.exists() and "gate" in p.read_text() and "acc" in p.read_text()]
+        report(bool(hooked), "PreToolUse hook found in " + (", ".join(hooked) if hooked else
+                                                            "no Claude Code settings file (see `acc init`)"),
+               warn_only=True)
+    elif a.agent == "omp":
+        _doctor_omp_extension(cfg, root, report)
     return 0 if ok else 1
+
+
+def _doctor_omp_extension(cfg, root: Path, report) -> None:
+    found = [p for p in omp_setup.extension_paths(root) if p.exists()]
+    if not found:
+        report(False, "omp extension not installed (run `acc init --omp`)", warn_only=True)
+        return
+    for p in found:
+        acc = omp_setup.extension_acc_path(p.read_text())
+        good = bool(acc) and os.path.isabs(acc) and os.access(acc, os.X_OK)
+        # A broken acc path blocks every push, so this one is a failure.
+        report(good, f"omp extension {p} calls an executable acc: {acc or 'no ACC path found'}")
+    omp = cfg.backend_settings("omp")["command"]
+    budget = omp_setup.gate_budget_ms(float(cfg.run["timeout_seconds"]))
+    current = omp_setup.config_get(omp, "extensionHandlers.toolCallTimeoutMs", root)
+    enough = isinstance(current, (int, float)) and current >= budget
+    report(enough, f"omp extensionHandlers.toolCallTimeoutMs is {current}; the gate can need {budget}"
+           + ("" if enough else f" (`omp config set extensionHandlers.toolCallTimeoutMs {budget}`)"),
+           warn_only=True)
 
 
 def cmd_mcp(a: argparse.Namespace) -> int:
@@ -322,6 +396,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp.set_defaults(fn=cmd_promote)
 
     sp = sub.add_parser("init", help="create .acc/ and print setup snippets")
+    sp.add_argument("--omp", action="store_true",
+                    help="set up omp instead of Claude Code: install the extension in "
+                         "~/.omp/agent/extensions and print the omp setup")
     sp.set_defaults(fn=cmd_init)
 
     sp = sub.add_parser("doctor", help="verify backend, auth, config and check files")
