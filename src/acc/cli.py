@@ -168,7 +168,8 @@ def cmd_init(a: argparse.Namespace) -> int:
     cfg_path = acc_dir / "config.toml"
     if not cfg_path.exists():
         text = (tpl / "config.toml").read_text()
-        cfg_path.write_text(text.replace("__CLAUDE__", str(Path(claude).resolve()) if claude else "claude"))
+        # Keep the launcher path: resolving symlinks would pin a versioned binary that auto-update removes.
+        cfg_path.write_text(text.replace("__CLAUDE__", str(Path(claude).absolute()) if claude else "claude"))
         created.append(cfg_path)
     for name in ("no-debug-leftovers.toml", "commit-message-matches-diff.toml"):
         dest = acc_dir / "checks" / name
