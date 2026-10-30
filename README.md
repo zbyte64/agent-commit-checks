@@ -5,8 +5,8 @@ agent's `git push`. Blocked pushes return findings to the agent as the tool erro
 Checks are TOML files in the project, run on a cheap model through the agent's own login,
 and are also exposed as MCP tools.
 
-This build implements the Claude Code pathway (`claude` backend, `acc gate --agent claude`,
-MCP server). The omp backend and extension are developed separately.
+Two agents are supported: Claude Code (`claude` backend, a `PreToolUse` hook) and oh-my-pi
+(`omp` backend, an extension on the `bash` tool). Both use the same runner and MCP server.
 
 ## Install
 
@@ -23,6 +23,10 @@ In `.acc/config.toml`, backend `command` paths may use `~` or environment variab
 to name a user. `acc init` writes paths under your home directory this way.
 
 ## Set up a project
+
+A project opts in by having a `.acc/` directory. In repos without one, the gate allows every push.
+
+### Claude Code
 
 ```sh
 cd my-project
@@ -48,7 +52,42 @@ Put the **MCP server** in `.mcp.json`:
 { "mcpServers": { "acc": { "command": "/home/you/.local/bin/acc", "args": ["mcp", "--agent", "claude"] } } }
 ```
 
-A project opts in by having a `.acc/` directory. In repos without one, the gate allows every push.
+### oh-my-pi (omp)
+
+```sh
+cd my-project
+acc init --omp           # creates .acc/, installs ~/.omp/agent/extensions/acc.ts, prints the omp setup
+acc doctor --agent omp   # checks the omp binary, the model role, auth (one tiny call) and the extension
+```
+
+The extension runs `acc gate --agent omp --cwd <dir> --command <cmd>` before every `bash` tool
+call that mentions `git` and `push`. A `block` verdict stops the call and returns the findings to
+the model as the tool error. A `warn` verdict lets the push run and adds the findings to the
+model's context after the tool result. If `acc` is missing, crashes or prints invalid JSON, the
+push is blocked. `acc init --omp` writes the absolute `acc` path into the extension. Re-run it
+after moving `acc`, then restart omp.
+
+The omp backend uses the `@decision` model role. Define it once in `~/.omp/agent/config.yml`,
+or per project in `.omp/config.yml`:
+
+```yaml
+modelRoles:
+  decision: anthropic/claude-haiku-5-5
+```
+
+omp stops a `tool_call` handler after `extensionHandlers.toolCallTimeoutMs` (30 s by default)
+and then blocks the push. A gate run can take up to two rounds of `run.timeout_seconds`, so
+give it 180 s:
+
+```sh
+omp config set extensionHandlers.toolCallTimeoutMs 180000
+```
+
+Put the **MCP server** in `.omp/mcp.json` (project) or `~/.omp/agent/mcp.json` (all projects):
+
+```json
+{ "mcpServers": { "acc": { "command": "/home/you/.local/bin/acc", "args": ["mcp", "--agent", "omp"] } } }
+```
 
 ## Check files
 
@@ -79,11 +118,12 @@ either kind.
 | Command | Purpose |
 | --- | --- |
 | `acc gate --agent claude` | PreToolUse hook: reads the payload on stdin, prints hook JSON |
+| `acc gate --agent omp --cwd DIR --command CMD` | omp extension: prints `{verdict, reason, context, message}` |
 | `acc run [--check id] [--range unpushed\|A..B] [--json]` | run checks on demand (exit 0 pass, 1 warn, 2 block, 3 error) |
 | `acc grade <id> [--sample N] [--commits REV... \| --range A..B]` | grade against history (or chosen commits or a range), write `.acc/grades/<id>.json` |
 | `acc list`, `acc validate [file]` | inspect and schema-check checks |
 | `acc promote <id> [--to advisory\|active] [--force]` | change status |
-| `acc init`, `acc doctor`, `acc mcp` | setup, diagnostics, MCP server |
+| `acc init [--omp]`, `acc doctor [--agent omp]`, `acc mcp [--agent omp]` | setup, diagnostics, MCP server |
 
 Logs: `~/.local/share/acc/logs/YYYY/MM/DD/events.jsonl` (override with `ACC_LOG_DIR`). The log
 holds hashes and sizes only, never diff text or secrets.
@@ -107,6 +147,25 @@ holds hashes and sizes only, never diff text or secrets.
   lines are redacted before the diff goes to the model. `block` patterns block with no
   model call.
 - `update_check` on an `active` check moves it back to `advisory`, because its grade is cleared.
+- The omp extension ships inside the package (`src/acc/adapters/omp/acc.ts`), not in a
+  top-level `adapters/`, so an installed `acc` can copy it.
+- The `omp -p` call adds `--no-extensions`, `--no-skills`, `--no-rules`, `--no-context-files`,
+  `--no-lsp`, `--no-title`, `--thinking off` and `--system-prompt` to the handoff's flags.
+  `--no-extensions` keeps this extension out of the spawned run, so the gate cannot recurse.
+  A gate run with Haiku took 2.0–2.9 s.
+- The `omp -p` call also loads a `--config` overlay that sets `memory.backend: off`. With a
+  memory backend on, omp stored each review prompt, including the diff. It recalled that
+  prompt in the next call from the same repo. In a live run, a push after an amend was blocked
+  on the diff from before the amend.
+- `omp -p` has no schema flag, so the answer schema goes in the prompt. The parser reads the
+  last assistant `message_end` event. It tolerates code fences, and the runner retries missing
+  or invalid entries alone.
+- `omp -p` puts piped stdin before the prompt, separated by a blank line. If `@decision` is
+  not defined, omp exits 1 with `Model "@decision" not found` and does not fall back to another
+  model. The backend error tells you which `modelRoles` entry to add.
+- omp's `pi.exec(command, args, {cwd, timeout, signal})` runs the command without a shell and
+  returns `{stdout, stderr, code, killed}`. The extension resolves the `bash` tool's optional
+  `cwd` input against the session directory and passes the result to `acc gate --cwd`.
 - Secret patterns are ported from [dev-decisions](https://github.com/adelvillar1/dev-decisions)
   (Apache-2.0); see `src/acc/secrets.py`.
 
@@ -118,4 +177,5 @@ uv run pytest
 ```
 
 Tests use `backend = "fake"` (`[agents.claude] backend = "fake"`, answers from a JSON file)
-and throwaway repos with a local bare remote.
+and throwaway repos with a local bare remote. `tests/test_omp_extension.py` loads the omp
+extension under [bun](https://bun.sh) and is skipped when `bun` is not on `PATH`.
