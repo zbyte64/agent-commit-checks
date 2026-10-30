@@ -88,12 +88,28 @@ def test_verdict_score():
 
 def test_validate_entry_drops_malformed_findings():
     ch = parse(check_toml("x"))
-    v, findings, summary = c.validate_entry(ch, {"answer": 0.9, "findings": [
+    v, findings, summary, confidence = c.validate_entry(ch, {"answer": 0.9, "confidence": 0.8, "findings": [
         {"file": "a.py", "line": 3, "message": "bad"}, {"nope": 1}, "str"], "summary": "s"})
-    assert v == "block"
+    assert v == "block" and confidence == 0.8
     assert findings == [{"file": "a.py", "line": 3, "message": "bad"}]
     with pytest.raises(c.AnswerError):
-        c.validate_entry(ch, {"answer": 0.9, "findings": "x"})
+        c.validate_entry(ch, {"answer": 0.9, "confidence": 0.8, "findings": "x"})
+
+
+@pytest.mark.parametrize("confidence", [None, 1.5, -0.1, True, "high"])
+def test_validate_entry_needs_confidence(confidence):
+    ch = parse(check_toml("x"))
+    entry = {"answer": 0.9, "findings": [], "summary": "s"}
+    if confidence is not None:
+        entry["confidence"] = confidence
+    with pytest.raises(c.AnswerError, match="confidence"):
+        c.validate_entry(ch, entry)
+
+
+def test_answer_schema_requires_confidence():
+    schema = c.answer_schema(parse(check_toml("x")))
+    assert "confidence" in schema["required"]
+    assert schema["properties"]["confidence"] == {"type": "number", "minimum": 0, "maximum": 1}
 
 
 def test_dump_roundtrip():

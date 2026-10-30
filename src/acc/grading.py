@@ -253,6 +253,7 @@ def grade(cfg: Config, cwd: Path, check: Check, backend: Backend, sample_size: i
     unstable = [u for u in units if key(u) in rerun_by_key
                 and rerun_by_key[key(u)].verdict != by_key[key(u)].verdict]
     caught = [u for u in known if by_key[key(u)].verdict == "block"]
+    unsure = [u for u in units if by_key[key(u)].low_confidence]
 
     metrics = {
         "sample_size": n,
@@ -262,6 +263,7 @@ def grade(cfg: Config, cwd: Path, check: Check, backend: Backend, sample_size: i
         "error_rate": round(len(errored) / len(units), 3) if units else 0.0,
         "errors": len(errored),
         "unstable": len(unstable),
+        "low_confidence": len(unsure),
         "catch_rate": round(len(caught) / len(known), 3) if known else None,
         "calls": calls,
     }
@@ -292,6 +294,7 @@ def grade(cfg: Config, cwd: Path, check: Check, backend: Backend, sample_size: i
                 "reason": u.reason,
                 "score": u.score,
                 "answer": by_key[key(u)].answer,
+                "confidence": by_key[key(u)].confidence,
                 "verdict": by_key[key(u)].verdict,
                 "rerun_verdict": rerun_by_key[key(u)].verdict if key(u) in rerun_by_key else None,
                 "summary": by_key[key(u)].summary,

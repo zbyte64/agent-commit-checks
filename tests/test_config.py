@@ -46,3 +46,18 @@ def test_init_writes_home_relative_path(repo, tmp_path, monkeypatch, capsys):
     assert main(["doctor", "--offline"]) == 0
     out = capsys.readouterr().out
     assert f"[ok  ] backends.claude.command is absolute: {claude}" in out
+
+
+def test_min_block_confidence_validated(tmp_path):
+    from acc.config import ConfigError
+
+    (tmp_path / ".acc").mkdir()
+    assert load_config(tmp_path).run["min_block_confidence"] == 0.7
+    for bad in ("1.5", "-1", '"high"', "true"):
+        (tmp_path / ".acc/config.toml").write_text(f"[run]\nmin_block_confidence = {bad}\n")
+        try:
+            load_config(tmp_path)
+        except ConfigError as e:
+            assert "min_block_confidence" in str(e)
+        else:
+            raise AssertionError(bad)

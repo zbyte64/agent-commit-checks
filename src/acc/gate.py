@@ -60,14 +60,20 @@ def format_result(res: RunResult) -> str:
         if e.error:
             lines.append(f"{head}: check could not run ({e.error})")
             return
-        lines.append(f"{head} (answer: {e.answer_text}): {e.summary}".rstrip(": "))
+        conf = f", confidence {e.confidence:.2f}" if e.confidence is not None else ""
+        lines.append(f"{head} (answer: {e.answer_text}{conf}): {e.summary}".rstrip(": "))
         for f in e.findings:
             lines.append(f"    {_finding_text(f)}")
 
     for e in blocks:
         emit(e, "block")
     for e in warns:
-        emit(e, "warn" if e.raw_verdict == e.verdict else f"warn, {e.status} check")
+        if e.raw_verdict == e.verdict:
+            emit(e, "warn")
+        elif e.low_confidence:
+            emit(e, "warn, low confidence")
+        else:
+            emit(e, f"warn, {e.status} check")
     for note in res.notes:
         lines.append(f"Note: {note}")
     if blocks:
@@ -115,7 +121,7 @@ def decide(command: str, cwd: Path, agent: str) -> Decision:
         "command": command, "range": res.range, "commits": len(res.commits),
         "diff_sha256": res.diff_sha256, "diff_chars": res.diff_chars, "truncated": res.truncated,
         "calls": res.calls,
-        "checks": [{"id": e.check_id, "answer": e.answer, "verdict": e.verdict,
+        "checks": [{"id": e.check_id, "answer": e.answer, "confidence": e.confidence, "verdict": e.verdict,
                     **({"error": e.error} if e.error else {})} for e in res.entries],
         "secret_hits": len([h for h in res.secret_hits if h.severity == "block"]),
         "verdict": res.verdict, "latency_ms": res.latency_ms,

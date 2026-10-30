@@ -225,3 +225,12 @@ def test_automatic_grade_records_mode(repo):
     assert g.record["selection"] == {"mode": "auto"} and g.record["excluded"] == []
     assert not grading.is_hand_picked(g.record)
     assert not grading.is_hand_picked({"result": "pass"})  # records from before this field
+
+
+def test_low_confidence_blocks_are_not_counted_as_blocks(repo):
+    history(repo, 25)
+    cfg, check = setup(repo, answers={"*": {"answer": 0.95, "confidence": 0.3, "findings": [], "summary": "unsure"}})
+    g = grading.grade(cfg, repo.path, check, get_backend(cfg, "claude"))
+    assert g.metrics["blocked"] == 0 and g.metrics["low_confidence"] == 20
+    assert g.result == "pass"
+    assert {(s["verdict"], s["confidence"]) for s in g.record["sample"]} == {("warn", 0.3)}

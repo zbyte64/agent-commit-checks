@@ -27,7 +27,8 @@ class Entry:
 
 def _answer_help(check: Check) -> str:
     if check.question_type == "bool":
-        return "Answer type: bool. `answer` is the probability from 0 to 1 that the answer to the question is yes."
+        return ("Answer type: bool. `answer` is the probability from 0 to 1 that the answer to the question "
+                "is yes: near 0 for no, near 1 for yes. It is not your confidence, which goes in `confidence`.")
     if check.question_type == "choice":
         lines = ["Answer type: choice. `answer` is exactly one of these labels:"]
         lines += [f"  - {label}: {desc}" for label, desc in check.labels.items()]
@@ -72,7 +73,10 @@ def build(entries: list[Entry], max_diff_chars: int) -> tuple[str, str, dict, di
         "Each block is one range of commits: the combined diff of all of them, and each "
         "commit's message prefixed by its short sha. Judge the range as a whole.",
         "",
-        'Return JSON: {"checks": {"<check key>": {"answer": ..., "findings": [...], "summary": "..."}}}',
+        'Return JSON: {"checks": {"<check key>": {"answer": ..., "confidence": ..., "findings": [...], '
+        '"summary": "..."}}}',
+        "- confidence: how sure you are of your answer, from 0 (a guess) to 1 (certain), separate "
+        "from the answer itself.",
         "- findings: specific problems, each {\"file\", \"line\", \"message\"}; `line` is the line "
         "number in the new version of the file. Use an empty list when there are none.",
         "- summary: one sentence explaining the answer.",

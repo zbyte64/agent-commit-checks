@@ -52,7 +52,8 @@ def _run_payload(res: RunResult) -> dict:
         "commits": [c[:7] for c in res.commits],
         "entries": [
             {
-                "check": e.check_id, "status": e.status, "answer": e.answer,
+                "check": e.check_id, "status": e.status, "answer": e.answer, "confidence": e.confidence,
+                "low_confidence": e.low_confidence,
                 "verdict": e.verdict, "raw_verdict": e.raw_verdict, "summary": e.summary,
                 "findings": e.findings, **({"error": e.error} if e.error else {}),
             }
@@ -154,7 +155,8 @@ def build_server(agent: str, cwd: Path | None = None) -> MCPServer:
         m = g.metrics
         lines = [f"Grade for {id}: {g.result}",
                  f"sample {m['sample_size']} of {m['pool_size']} eligible ranges; block rate "
-                 f"{m['block_rate']:.0%} ({m['blocked']}); errors {m['errors']}; unstable {m['unstable']}"
+                 f"{m['block_rate']:.0%} ({m['blocked']}); low-confidence blocks warned {m['low_confidence']}; "
+                 f"errors {m['errors']}; unstable {m['unstable']}"
                  + (f"; catch rate {m['catch_rate']:.0%}" if m["catch_rate"] is not None else "")]
         for s in g.record["sample"]:
             if s["verdict"] == "block":

@@ -29,6 +29,7 @@ DEFAULTS: dict[str, Any] = {
         "parallel": 4,
         "max_checks_per_call": 8,
         "on_backend_error": "block",
+        "min_block_confidence": 0.7,
         "secret_scan": True,
         "exclude_globs": [
             "**/package-lock.json",
@@ -125,6 +126,9 @@ def load_config(root: Path) -> Config:
             backend["command"] = expand_path(backend["command"])
     if cfg.run["on_backend_error"] not in ("warn", "block"):
         raise ConfigError("run.on_backend_error must be 'warn' or 'block'")
+    mbc = cfg.run["min_block_confidence"]
+    if isinstance(mbc, bool) or not isinstance(mbc, (int, float)) or not 0 <= mbc <= 1:
+        raise ConfigError("run.min_block_confidence must be a number from 0 to 1")
     return cfg
 
 

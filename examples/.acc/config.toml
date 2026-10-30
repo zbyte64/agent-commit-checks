@@ -22,6 +22,7 @@ timeout_seconds = 90
 parallel = 4
 max_checks_per_call = 8
 on_backend_error = "block" # warn | block
+min_block_confidence = 0.7 # a block answered with lower confidence only warns
 secret_scan = true
 # exclude_globs = ["**/package-lock.json", "**/*.min.js"]
 

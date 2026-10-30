@@ -2,7 +2,8 @@
 
 The fixture maps a check key (`id@sha7`), a check id, or `*` to either an answer
 object, the string "omit" (leave the entry out), "error" (fail the whole call), or
-"retryable" (fail the call with a retryable error, e.g. invalid output).
+"retryable" (fail the call with a retryable error, e.g. invalid output). An answer
+object without `confidence` is returned with confidence 1.
 `ACC_FAKE_ANSWERS` overrides `[backends.fake] answers`.
 """
 
@@ -35,5 +36,5 @@ class FakeBackend:
                 raise BackendError(f"fake backend error for {key}", retryable=ans == "retryable")
             if ans is None or ans == "omit":
                 continue
-            out[key] = ans
+            out[key] = {"confidence": 1.0, **ans} if isinstance(ans, dict) else ans
         return {"checks": out}

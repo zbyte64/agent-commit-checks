@@ -215,3 +215,29 @@ def test_unknown_backend(repo):
         assert "nope" in str(e)
     else:
         raise AssertionError
+
+
+def test_low_confidence_block_becomes_warn(repo):
+    repo.commit()
+    res = run(repo, {"a": {**ans(0.95), "confidence": 0.69}, "b": {**ans(0.95), "confidence": 0.7},
+                     "c": {**ans(0.6), "confidence": 0.1}},
+              ("a", check_toml("a")), ("b", check_toml("b")), ("c", check_toml("c")))
+    by = {e.check_id: e for e in res.entries}
+    assert (by["a"].raw_verdict, by["a"].verdict, by["a"].low_confidence) == ("block", "warn", True)
+    assert (by["b"].verdict, by["b"].low_confidence) == ("block", False)  # at the threshold still blocks
+    assert (by["c"].verdict, by["c"].low_confidence) == ("warn", False)  # only blocks are softened
+    assert res.verdict == "block"
+
+
+def test_min_block_confidence_configurable(repo):
+    repo.commit()
+    res = run(repo, {"a": {**ans(0.95), "confidence": 0.69}}, ("a", check_toml("a")),
+              config="[run]\nmin_block_confidence = 0.5\n")
+    assert res.verdict == "block" and res.entries[0].confidence == 0.69
+
+
+def test_missing_confidence_retried_then_errors(repo):
+    repo.commit()
+    res = run(repo, {"a": {**ans(0.1), "confidence": None}}, ("a", check_toml("a")))
+    assert res.calls == 2
+    assert "confidence" in res.entries[0].error and res.verdict == "block"

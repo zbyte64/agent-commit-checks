@@ -56,7 +56,16 @@ def test_block_reviews_commits_together(enabled):
     set_answers(enabled, {"a": ans(0.9, "bad")})
     reason = gate(enabled, "git push")["hookSpecificOutput"]["permissionDecisionReason"]
     assert "push blocked (2 commits reviewed together)" in reason
-    assert "- [block] a (answer: 0.9): bad" in reason
+    assert "- [block] a (answer: 0.9, confidence 1.00): bad" in reason
+
+
+def test_low_confidence_block_warns(enabled):
+    enabled.commit()
+    set_answers(enabled, {"a": {**ans(0.95, "maybe a debug print"), "confidence": 0.4}})
+    out = gate(enabled, "git push")
+    assert "permissionDecision" not in out["hookSpecificOutput"]
+    ctx = out["hookSpecificOutput"]["additionalContext"]
+    assert "- [warn, low confidence] a (answer: 0.95, confidence 0.40): maybe a debug print" in ctx
 
 
 def test_warn_adds_context(enabled):

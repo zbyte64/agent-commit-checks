@@ -118,7 +118,8 @@ def cmd_grade(a: argparse.Namespace) -> int:
               }.get(sel["mode"], "history")
     print(f"acc: grade for {a.id} on {chosen}: {g.result.upper()}")
     print(f"  sample {m['sample_size']} of {m['pool_size']} eligible ranges, block rate {m['block_rate']:.0%} "
-          f"({m['blocked']} blocked), errors {m['errors']}, unstable {m['unstable']}, calls {m['calls']}"
+          f"({m['blocked']} blocked, {m['low_confidence']} low-confidence blocks warned), errors {m['errors']}, "
+          f"unstable {m['unstable']}, calls {m['calls']}"
           + (f", catch rate {m['catch_rate']:.0%}" if m["catch_rate"] is not None else ""))
     for s in g.record["sample"]:
         if s["verdict"] in ("block", "warn") or s.get("error"):

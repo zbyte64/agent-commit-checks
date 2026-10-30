@@ -101,6 +101,12 @@ Put the **MCP server** in `.omp/mcp.json` (project) or `~/.omp/agent/mcp.json` (
 
 Phrase `bool` questions so that "yes" means there is a problem.
 
+Every answer also carries a `confidence` from 0 to 1: how sure the model is of its answer. The
+backends are chat models acting as decision models, so the answer schema asks for it alongside
+the answer. A `block` answered with confidence below `run.min_block_confidence` (default 0.7)
+becomes a `warn` that says "low confidence", in the gate and in grades. An answer without a
+valid confidence is invalid and is retried alone, like a missing answer.
+
 A check answers once for the whole push. The model sees the combined diff of every pushed
 commit and each commit's message, prefixed by its short sha. There is no per-commit mode.
 Secrets are still scanned in each commit, so one that is added and then deleted in a later
@@ -120,7 +126,9 @@ may be commits or `A..B` ranges. Excluded units are listed with a reason (no mat
 diff, secret-scan hit, holds the commit that added the check, no commits in range). The grade
 records how its sample was chosen. The MCP `promote_check` tool needs an automatic grade to
 reach `active`, so an agent cannot hand-pick easy commits. `acc promote` accepts either kind.
-`grading.min_sample` counts ranges, so a grade on fewer ranges is `insufficient`.
+`grading.min_sample` counts ranges, so a grade on fewer ranges is `insufficient`. A
+low-confidence block counts as a warning in the block rate. The grade reports how many there
+were, and records each unit's confidence.
 
 ## Commands
 

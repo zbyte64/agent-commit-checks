@@ -26,6 +26,8 @@ class EntryResult:
     verdict: str  # after advisory demotion and error handling
     answer: object = None
     answer_text: str = ""
+    confidence: float | None = None
+    low_confidence: bool = False  # a block below run.min_block_confidence, reported as a warning
     findings: list[dict] = field(default_factory=list)
     summary: str = ""
     error: str = ""
@@ -60,6 +62,11 @@ class RunResult:
 def demote(check: Check, verdict: str) -> str:
     """Only `active` checks can block; others report a would-be block as a warning."""
     return "warn" if verdict == "block" and not check.can_block else verdict
+
+
+def is_unsure(verdict: str, confidence: float, cfg: Config) -> bool:
+    """A block the model is not confident about is reported as a warning instead."""
+    return verdict == "block" and confidence < cfg.run["min_block_confidence"]
 
 
 # ── executing entries ────────────────────────────────────────────────────────
@@ -104,14 +111,15 @@ def execute(entries: list[prompt.Entry], backend: Backend, cfg: Config) -> tuple
         if raw is None:
             return None
         try:
-            verdict, findings, summary = validate_entry(c, raw)
+            verdict, findings, summary, confidence = validate_entry(c, raw)
         except AnswerError as ex:
             return EntryResult(raw_verdict=on_error, verdict=demote(c, on_error),
                                error=f"invalid answer: {ex}", **base)
         answer = raw.get("answer")
-        return EntryResult(raw_verdict=verdict, verdict=demote(c, verdict), answer=answer,
-                           answer_text=describe_answer(c, answer), findings=findings,
-                           summary=summary, **base)
+        unsure = is_unsure(verdict, confidence, cfg)
+        return EntryResult(raw_verdict=verdict, verdict=demote(c, "warn" if unsure else verdict),
+                           answer=answer, answer_text=describe_answer(c, answer), confidence=confidence,
+                           low_confidence=unsure, findings=findings, summary=summary, **base)
 
     def run_batch(batch: list[prompt.Entry]) -> tuple[list[EntryResult], list[prompt.Entry]]:
         answers, err, retryable, truncated = _ask(backend, batch, cfg)

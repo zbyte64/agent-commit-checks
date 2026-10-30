@@ -257,6 +257,7 @@ def answer_schema(check: Check) -> dict:
         "type": "object",
         "properties": {
             "answer": answer,
+            "confidence": {"type": "number", "minimum": 0, "maximum": 1},
             "findings": {
                 "type": "array",
                 "items": {
@@ -271,7 +272,7 @@ def answer_schema(check: Check) -> dict:
             },
             "summary": {"type": "string"},
         },
-        "required": ["answer", "findings", "summary"],
+        "required": ["answer", "confidence", "findings", "summary"],
     }
 
 
@@ -299,11 +300,14 @@ def map_verdict(check: Check, answer: Any) -> str:
     return "pass"
 
 
-def validate_entry(check: Check, entry: Any) -> tuple[str, list[dict], str]:
-    """Validate one model answer object. Returns (verdict, findings, summary)."""
+def validate_entry(check: Check, entry: Any) -> tuple[str, list[dict], str, float]:
+    """Validate one model answer object. Returns (verdict, findings, summary, confidence)."""
     if not isinstance(entry, dict):
         raise AnswerError("answer entry is not an object")
     verdict = map_verdict(check, entry.get("answer"))
+    confidence = entry.get("confidence")
+    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)) or not 0 <= confidence <= 1:
+        raise AnswerError(f"expected a confidence 0-1, got {confidence!r}")
     findings = entry.get("findings", [])
     if not isinstance(findings, list):
         raise AnswerError("findings is not a list")
@@ -312,7 +316,7 @@ def validate_entry(check: Check, entry: Any) -> tuple[str, list[dict], str]:
         if isinstance(f, dict) and isinstance(f.get("message"), str):
             clean.append({k: f[k] for k in ("file", "line", "message") if k in f})
     summary = entry.get("summary", "")
-    return verdict, clean, summary if isinstance(summary, str) else ""
+    return verdict, clean, summary if isinstance(summary, str) else "", float(confidence)
 
 
 def worst(verdicts: list[str]) -> str:
