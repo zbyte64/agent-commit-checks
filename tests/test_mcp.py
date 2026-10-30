@@ -115,3 +115,12 @@ def test_grade_check_with_commits_cannot_promote_to_active(server, repo):
     assert r.structured_content["selection"]["mode"] == "commits"
     with pytest.raises(ToolError, match="chosen commits or a range"):
         call(server, "promote_check", id="user-check", to="active")
+
+
+def test_grade_check_with_ranges(server, repo):
+    shas = [repo.commit({f"f{i}.py": "x\n"}) for i in range(4)]
+    ranges = [f"{shas[0]}..{shas[1]}", f"{shas[1]}..{shas[3]}"]
+    r = call(server, "grade_check", id="user-check", ranges=ranges)
+    assert r.structured_content["selection"] == {"mode": "ranges", "ranges": ranges}
+    assert [s["commits"] for s in r.structured_content["sample"]] == [[shas[1]], shas[2:4]]
+    assert f"would block {shas[1][:7]}..{shas[3][:7]}" in r.content[0].text

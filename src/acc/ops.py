@@ -120,7 +120,7 @@ def promote(cfg: Config, check_id: str, to: str, force: bool = False, allow_hand
                 "none": "it has no grade; run grade_check first",
                 "stale": "the check changed since it was graded; grade it again",
                 "fail": "its grade failed",
-                "insufficient": "its grade had too few history commits",
+                "insufficient": "its grade had too few ranges",
             }.get(status, status)
             raise OpError(f"cannot promote {check_id!r} to active: {hint}")
         record = grading.load_grade(cfg, check_id) or {}

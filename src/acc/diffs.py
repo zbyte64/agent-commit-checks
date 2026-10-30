@@ -108,9 +108,12 @@ def commit_context(cwd: Path, sha: str, exclude_globs: list[str], scan: bool = T
     return build_context(cwd, g.short(sha), raw, commit_message(cwd, sha), exclude_globs, sha, scan)
 
 
+def range_messages(cwd: Path, commits: list[str]) -> str:
+    return "\n\n".join(f"{g.short(c)}: {commit_message(cwd, c)}" for c in commits)
+
+
 def range_context(cwd: Path, refs: list[tuple[str, str, str]], commits: list[str],
-                  exclude_globs: list[str], scan: bool = True) -> Context:
+                  exclude_globs: list[str], scan: bool = True, label: str = "range") -> Context:
     """Combined diff over pushed refs [(name, base, tip)] with every pushed commit's message."""
     raw = "".join(raw_diff(cwd, base, tip) for _, base, tip in refs)
-    messages = "\n\n".join(f"{g.short(c)}: {commit_message(cwd, c)}" for c in commits)
-    return build_context(cwd, "range", raw, messages, exclude_globs, None, scan)
+    return build_context(cwd, label, raw, range_messages(cwd, commits), exclude_globs, None, scan)

@@ -133,32 +133,33 @@ def build_server(agent: str, cwd: Path | None = None) -> MCPServer:
 
     @server.tool()
     def grade_check(id: str, sample_size: int | None = None, commits: list[str] | None = None,
-                    range: str | None = None) -> CallToolResult:
+                    ranges: list[str] | None = None) -> CallToolResult:
         """Grade a check against ~20 relevant commits from history and write .acc/grades/<id>.json.
 
-        Optionally grade exactly `commits`, or draw the sample from `range` (A..B) instead of
-        the default branch's history; not both. Grades on chosen commits or ranges are useful
-        for testing, but promote_check only accepts an automatic grade for `active`.
-        Report the block rate and any history commits it would block to the user.
+        Each unit is reviewed as a range, like a push. History units are single first-parent
+        commits. Optionally grade each of `commits` on its own, or each `ranges` entry (A..B)
+        as one unit; not both. Grades on chosen commits or ranges are useful for testing, but
+        promote_check only accepts an automatic grade for `active`.
+        Report the block rate and any ranges it would block to the user.
         """
         root, cfg = project()
 
         def go():
             check = ops.get_check(cfg, id)
             return grading.grade(cfg, root, check, get_backend(cfg, agent), sample_size,
-                                 commits=commits, rev_range=range)
+                                 commits=commits, ranges=ranges)
 
         g = guarded(go)
         m = g.metrics
         lines = [f"Grade for {id}: {g.result}",
-                 f"sample {m['sample_size']} of {m['pool_size']} eligible commits; block rate "
+                 f"sample {m['sample_size']} of {m['pool_size']} eligible ranges; block rate "
                  f"{m['block_rate']:.0%} ({m['blocked']}); errors {m['errors']}; unstable {m['unstable']}"
                  + (f"; catch rate {m['catch_rate']:.0%}" if m["catch_rate"] is not None else "")]
         for s in g.record["sample"]:
             if s["verdict"] == "block":
-                lines.append(f"would block {s['sha'][:7]} ({s['reason']}): {s['summary']}")
+                lines.append(f"would block {grading.short_range(s['range'])} ({s['reason']}): {s['summary']}")
         for x in g.record["excluded"]:
-            lines.append(f"skipped {x['sha'][:7]}: {x['reason']}")
+            lines.append(f"skipped {grading.short_range(x['range'])}: {x['reason']}")
         lines.append(f"wrote {g.path}")
         return _result("\n".join(lines), {**g.record, "path": str(g.path)})
 

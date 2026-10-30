@@ -112,19 +112,21 @@ def cmd_grade(a: argparse.Namespace) -> int:
     root, cfg = ops.project(Path.cwd())
     check = ops.get_check(cfg, a.id)
     g = grading.grade(cfg, root, check, get_backend(cfg, a.agent, a.backend), a.sample,
-                      commits=a.commits, rev_range=a.range)
+                      commits=a.commits, ranges=a.range)
     m = g.metrics
     sel = g.record["selection"]
-    chosen = {"commits": "chosen commits", "range": f"range {sel.get('range')}"}.get(sel["mode"], "history")
+    chosen = {"commits": "chosen commits", "ranges": f"ranges {', '.join(sel.get('ranges', []))}"
+              }.get(sel["mode"], "history")
     print(f"acc: grade for {a.id} on {chosen}: {g.result.upper()}")
-    print(f"  sample {m['sample_size']} of {m['pool_size']} eligible, block rate {m['block_rate']:.0%} "
+    print(f"  sample {m['sample_size']} of {m['pool_size']} eligible ranges, block rate {m['block_rate']:.0%} "
           f"({m['blocked']} blocked), errors {m['errors']}, unstable {m['unstable']}, calls {m['calls']}"
           + (f", catch rate {m['catch_rate']:.0%}" if m["catch_rate"] is not None else ""))
     for s in g.record["sample"]:
         if s["verdict"] in ("block", "warn") or s.get("error"):
-            print(f"  {s['verdict']:<5} {s['sha'][:7]} ({s['reason']}): {s.get('error') or s['summary']}")
+            print(f"  {s['verdict']:<5} {grading.short_range(s['range'])} ({s['reason']}): "
+                  f"{s.get('error') or s['summary']}")
     for x in g.record["excluded"]:
-        print(f"  skip  {x['sha'][:7]}: {x['reason']}")
+        print(f"  skip  {grading.short_range(x['range'])}: {x['reason']}")
     print(f"  wrote {g.path}")
     return 0 if g.result == "pass" else 1
 
@@ -376,8 +378,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--sample", type=int, help="target sample size (default from config)")
     sp.add_argument("--backend", help="override the backend")
     pick = sp.add_mutually_exclusive_group()
-    pick.add_argument("--commits", nargs="+", metavar="REV", help="grade exactly these commits")
-    pick.add_argument("--range", metavar="A..B", help="draw the sample from this range instead of history")
+    pick.add_argument("--commits", nargs="+", metavar="REV", help="grade each of these commits on its own")
+    pick.add_argument("--range", action="append", metavar="A..B",
+                      help="grade this range as one unit, like a push of its commits (repeatable)")
     sp.set_defaults(fn=cmd_grade)
 
     sp = sub.add_parser("list", help="list checks")

@@ -69,8 +69,11 @@ def test_grade_commits_and_range_flags(repo, capsys, monkeypatch):
     assert main(["grade", "a", "--commits", shas[0], shas[1]]) == 1  # 2 < min_sample: insufficient
     out = capsys.readouterr().out
     assert "on chosen commits: INSUFFICIENT" in out
-    main(["grade", "a", "--range", f"{shas[0]}..{shas[2]}"])
-    assert "on range" in capsys.readouterr().out
+    r1, r2 = f"{shas[0]}..{shas[1]}", f"{shas[1]}..{shas[2]}"
+    main(["grade", "a", "--range", r1, "--range", r2])
+    out = capsys.readouterr().out
+    assert f"on ranges {r1}, {r2}: INSUFFICIENT" in out
+    assert "sample 2 of 2 eligible ranges" in out
     assert main(["grade", "a", "--commits", "nope"]) == 3
     with pytest.raises(SystemExit):
         main(["grade", "a", "--commits", shas[0], "--range", "HEAD~1..HEAD"])

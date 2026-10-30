@@ -106,12 +106,16 @@ warn, and `active` checks can block. `active` needs a passing grade (`acc grade 
 check's current contents. The grade hash ignores the `status` line, so promotion does not
 invalidate it.
 
-By default a grade samples about 20 relevant commits from the default branch. `--commits`
-grades exactly the commits you list, and `--range A..B` draws the sample from that range.
-Excluded commits are listed with a reason (no matching path, empty diff, secret-scan hit). The
-grade records how its sample was chosen. The MCP `promote_check` tool needs an automatic
-grade to reach `active`, so an agent cannot hand-pick easy commits. `acc promote` accepts
-either kind.
+A grade reviews ranges of commits the way the gate reviews a push: each unit is one model call
+on that range's combined diff and messages, and units never share a call. By default a grade
+samples about 20 relevant first-parent commits from the default branch, each as a one-commit
+range. `--range A..B` grades that range as one unit, and can be repeated to grade several
+ranges. `--commits` grades each listed commit as its own one-commit range. `expect_fail` entries
+may be commits or `A..B` ranges. Excluded units are listed with a reason (no matching path, empty
+diff, secret-scan hit, holds the commit that added the check, no commits in range). The grade
+records how its sample was chosen. The MCP `promote_check` tool needs an automatic grade to
+reach `active`, so an agent cannot hand-pick easy commits. `acc promote` accepts either kind.
+`grading.min_sample` counts ranges, so a grade on fewer ranges is `insufficient`.
 
 ## Commands
 
@@ -120,7 +124,7 @@ either kind.
 | `acc gate --agent claude` | PreToolUse hook: reads the payload on stdin, prints hook JSON |
 | `acc gate --agent omp --cwd DIR --command CMD` | omp extension: prints `{verdict, reason, context, message}` |
 | `acc run [--check id] [--range unpushed\|A..B] [--json]` | run checks on demand (exit 0 pass, 1 warn, 2 block, 3 error) |
-| `acc grade <id> [--sample N] [--commits REV... \| --range A..B]` | grade against history (or chosen commits or a range), write `.acc/grades/<id>.json` |
+| `acc grade <id> [--sample N] [--commits REV... \| --range A..B ...]` | grade against history (or chosen commits or ranges), write `.acc/grades/<id>.json` |
 | `acc list`, `acc validate [file]` | inspect and schema-check checks |
 | `acc promote <id> [--to advisory\|active] [--force]` | change status |
 | `acc init [--omp]`, `acc doctor [--agent omp]`, `acc mcp [--agent omp]` | setup, diagnostics, MCP server |
