@@ -27,6 +27,10 @@ def get_backend(cfg: Config, agent: str, override: str | None = None) -> Backend
         from .claude import ClaudeBackend
 
         return ClaudeBackend(settings)
+    if name == "omp":
+        from .omp import OmpBackend
+
+        return OmpBackend(settings, cfg.root)
     if name == "fake":
         from .fake import FakeBackend
 

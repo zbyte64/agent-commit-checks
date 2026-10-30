@@ -19,6 +19,7 @@ ACC_DIR = ".acc"
 DEFAULTS: dict[str, Any] = {
     "backends": {
         "claude": {"command": "claude", "model": "haiku"},
+        "omp": {"command": "omp", "model": "@decision"},
         "fake": {"answers": ""},
     },
     "agents": {},
