@@ -38,6 +38,7 @@ class RunResult:
     verdict: str = "pass"
     entries: list[EntryResult] = field(default_factory=list)
     secret_hits: list[SecretHit] = field(default_factory=list)
+    secret_blocked: bool = False  # block-severity hits stopped the run before any model call
     notes: list[str] = field(default_factory=list)
     range: str = ""
     commits: list[str] = field(default_factory=list)
@@ -184,6 +185,7 @@ def review(cfg: Config, cwd: Path, push: PushRange, checks: list[Check], backend
     hits = [h for ctx in commit_ctx.values() for h in ctx.secret_hits if h.severity == "block"]
     if hits:
         res.secret_hits = hits
+        res.secret_blocked = True
         res.verdict = "block"
         res.notes.append("The local secret scan found likely secrets; nothing was sent to a model.")
         res.latency_ms = int((time.monotonic() - started) * 1000)

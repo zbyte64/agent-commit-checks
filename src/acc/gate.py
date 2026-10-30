@@ -37,7 +37,7 @@ def _finding_text(f: dict) -> str:
 def format_result(res: RunResult) -> str:
     """Agent-facing feedback naming the commit for each finding."""
     lines: list[str] = []
-    if res.secret_hits and res.verdict == "block":
+    if res.secret_blocked:
         lines.append("acc: push blocked by the local secret scan (no model was called).")
         for h in res.secret_hits:
             lines.append(f"- {g.short(h.commit or '')} {h.file}:{h.line}: possible {h.pattern}")
@@ -132,7 +132,7 @@ def decide(command: str, cwd: Path, agent: str) -> Decision:
     counts = f"{sum(e.verdict == 'block' for e in res.entries)} blocking, " \
              f"{sum(e.verdict == 'warn' for e in res.entries)} warning"
     summary = "acc: push blocked" if res.verdict == "block" else "acc: push checks warned"
-    if res.secret_hits and res.verdict == "block":
+    if res.secret_blocked:
         counts = "secret scan"
     return Decision(res.verdict, text, f"{summary} ({counts})")
 

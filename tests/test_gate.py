@@ -147,6 +147,14 @@ def test_secret_block(enabled, tmp_path):
     assert row["calls"] == 0 and FAKE_AWS_KEY not in json.dumps(row)
 
 
+def test_redacted_secret_does_not_mask_check_block(enabled):
+    enabled.commit({"settings.ini": "DB_PASSWORD=hunter2\n"})
+    set_answers(enabled, {"a": ans(0.95, "Real problem")})
+    reason = gate(enabled, "git push")["hookSpecificOutput"]["permissionDecisionReason"]
+    assert "secret scan" not in reason.splitlines()[0]
+    assert "Real problem" in reason and "redacted" in reason
+
+
 def test_repo_without_acc_is_ignored(repo):
     repo.commit()
     assert gate(repo, "git push") is None
