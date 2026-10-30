@@ -14,6 +14,9 @@ from . import BackendError
 # Structured output needs a second turn: the model calls the StructuredOutput tool,
 # then the run ends. With --max-turns 1 the result is error_max_turns.
 MAX_TURNS = "2"
+# No hooks in the spawned run (so this gate cannot recurse), and no extended
+# thinking: it roughly doubled latency for these short classification answers.
+SETTINGS = '{"disableAllHooks": true, "alwaysThinkingEnabled": false}'
 
 
 class ClaudeBackend:
@@ -31,7 +34,7 @@ class ClaudeBackend:
             "--tools", "",
             "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}',
             "--setting-sources", "",
-            "--settings", '{"disableAllHooks": true}',
+            "--settings", SETTINGS,
             "--no-session-persistence",
             "--system-prompt", system,
             "--output-format", "json",

@@ -1,5 +1,7 @@
 """Parser contracts against recorded `claude -p --output-format json` results."""
 
+import json
+
 import pytest
 
 from acc.backends import BackendError
@@ -44,7 +46,8 @@ def test_argv_flags():
     argv = ClaudeBackend({"command": "/x/claude", "model": "haiku"}).argv("sys", "prompt", {"type": "object"})
     assert argv[0] == "/x/claude"
     assert "--bare" not in argv
-    assert argv[argv.index("--settings") + 1] == '{"disableAllHooks": true}'
+    settings = json.loads(argv[argv.index("--settings") + 1])
+    assert settings["disableAllHooks"] is True and settings["alwaysThinkingEnabled"] is False
     assert argv[argv.index("--tools") + 1] == ""
     assert argv[argv.index("--max-turns") + 1] == "2"
     assert argv[-1] == "prompt"
