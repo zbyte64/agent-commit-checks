@@ -27,7 +27,7 @@ def test_id_must_match_file_name():
 @pytest.mark.parametrize("mutate,msg", [
     (lambda t: t.replace('id = "x"', 'id = "Bad_ID"'), "id must"),
     (lambda t: t.replace('status = "active"', 'status = "live"'), "status"),
-    (lambda t: t.replace('scope = "range"', 'scope = "file"'), "scope"),
+    (lambda t: t.replace('applies_to', 'scope = "per_commit"\napplies_to'), "scope was removed"),
     (lambda t: t.replace('inputs = ["diff"]', 'inputs = ["code"]'), "inputs"),
     (lambda t: t.replace('applies_to = ["**/*"]', "applies_to = []"), "applies_to"),
     (lambda t: t.replace("block_at = 0.8", "block_at = 1.5"), "probability"),

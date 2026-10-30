@@ -9,7 +9,6 @@ from tests.conftest import check_toml
 SPEC = {
     "id": "no-todo",
     "title": "No new TODO comments",
-    "scope": "range",
     "applies_to": ["**/*"],
     "inputs": ["diff"],
     "question": {"type": "bool", "instructions": "Do the added lines add TODO comments?"},

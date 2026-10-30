@@ -97,7 +97,7 @@ def log_rows(tmp_path):
     return rows
 
 
-def check_toml(cid: str, *, qtype: str = "bool", status: str = "active", scope: str = "range",
+def check_toml(cid: str, *, qtype: str = "bool", status: str = "active",
                applies_to: str = '["**/*"]', inputs: str = '["diff"]', extra: str = "") -> str:
     if qtype == "bool":
         q = 'type = "bool"\ninstructions = "Is there a problem?"'
@@ -108,5 +108,5 @@ def check_toml(cid: str, *, qtype: str = "bool", status: str = "active", scope: 
     else:
         q = 'type = "score"\ninstructions = "Rate it."\nlevels = ["fine", "minor", "major"]'
         v = "warn_at = 1\nblock_at = 2"
-    return (f'id = "{cid}"\ntitle = "Check {cid}"\nstatus = "{status}"\nscope = "{scope}"\n'
+    return (f'id = "{cid}"\ntitle = "Check {cid}"\nstatus = "{status}"\n'
             f"applies_to = {applies_to}\ninputs = {inputs}\n\n[question]\n{q}\n\n[verdict]\n{v}\n{extra}")

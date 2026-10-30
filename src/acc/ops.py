@@ -33,7 +33,7 @@ def list_checks(cfg: Config, status: str | None = None) -> list[dict]:
         if status and c.status != status:
             continue
         rows.append({
-            "id": c.id, "title": c.title, "type": c.question_type, "scope": c.scope,
+            "id": c.id, "title": c.title, "type": c.question_type,
             "status": c.status, "enabled": c.enabled, "author": c.author,
             "grade": grading.grade_status(cfg, c),
         })

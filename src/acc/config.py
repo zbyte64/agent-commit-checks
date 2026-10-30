@@ -28,7 +28,6 @@ DEFAULTS: dict[str, Any] = {
         "timeout_seconds": 90,
         "parallel": 4,
         "max_checks_per_call": 8,
-        "max_commits": 20,
         "on_backend_error": "block",
         "secret_scan": True,
         "exclude_globs": [

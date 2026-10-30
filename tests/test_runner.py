@@ -40,14 +40,26 @@ def test_advisory_block_becomes_warn(repo):
     assert res.entries[0].raw_verdict == "block"
 
 
-def test_per_commit_keys_and_messages(repo):
-    a = repo.commit(msg="first")
-    b = repo.commit(msg="second")
-    res = run(repo, {f"pc@{b[:7]}": ans("bad"), "pc": ans("good")},
-              ("pc", check_toml("pc", qtype="choice", scope="per_commit", inputs='["diff", "message"]')))
-    assert [e.key for e in res.entries] == [f"pc@{a[:7]}", f"pc@{b[:7]}"]
-    assert [e.verdict for e in res.entries] == ["pass", "block"]
-    assert res.entries[1].commit == b[:7]
+def test_whole_push_is_one_entry(repo, monkeypatch):
+    a = repo.commit({"a.py": "alpha = 1\n"}, msg="first")
+    b = repo.commit({"b.py": "beta = 2\n"}, msg="second")
+    from acc.backends.fake import FakeBackend
+
+    seen = []
+    orig = FakeBackend.ask
+
+    def spy(self, system, prompt, stdin, schema, timeout):
+        seen.append(stdin)
+        return orig(self, system, prompt, stdin, schema, timeout)
+
+    monkeypatch.setattr(FakeBackend, "ask", spy)
+    res = run(repo, {"pc": ans("bad")}, ("pc", check_toml("pc", qtype="choice", inputs='["diff", "message"]')))
+    assert [e.key for e in res.entries] == ["pc"] and res.calls == 1
+    assert res.verdict == "block"
+    # One call sees every commit's message and the combined diff.
+    assert len(seen) == 1
+    for text in (f"{a[:7]}: first", f"{b[:7]}: second", "alpha = 1", "beta = 2"):
+        assert text in seen[0]
 
 
 def test_applies_to_skips(repo):
@@ -57,11 +69,11 @@ def test_applies_to_skips(repo):
     assert res.checks_skipped == ["py"]
 
 
-def test_per_commit_applies_to_per_commit(repo):
+def test_applies_to_matches_any_commit_in_range(repo):
     repo.commit({"a.py": "x\n"})
     repo.commit({"b.md": "x\n"})
-    res = run(repo, {"*": ans(0.1)}, ("py", check_toml("py", scope="per_commit", applies_to='["*.py"]')))
-    assert len(res.entries) == 1
+    res = run(repo, {"*": ans(0.1)}, ("py", check_toml("py", applies_to='["*.py"]')))
+    assert [e.key for e in res.entries] == ["py"]
 
 
 def test_batching_and_parallel_calls(repo):
@@ -70,25 +82,6 @@ def test_batching_and_parallel_calls(repo):
     res = run(repo, {"*": ans(0.1)}, *checks, config="[run]\nmax_checks_per_call = 2\n")
     assert res.calls == 3
     assert len(res.entries) == 5
-
-
-def test_commits_never_share_a_call(repo, monkeypatch):
-    shas = [repo.commit() for _ in range(3)]
-    from acc.backends.fake import FakeBackend
-
-    calls = []
-    orig = FakeBackend.ask
-
-    def spy(self, system, prompt, stdin, schema, timeout):
-        calls.append(sorted(schema["properties"]["checks"]["required"]))
-        return orig(self, system, prompt, stdin, schema, timeout)
-
-    monkeypatch.setattr(FakeBackend, "ask", spy)
-    res = run(repo, {"*": ans(0.1)}, ("pc", check_toml("pc", scope="per_commit")),
-              ("pc2", check_toml("pc2", scope="per_commit")), ("r", check_toml("r")))
-    assert res.verdict == "pass" and res.calls == 4
-    # One call per commit holding both of its per-commit checks, plus one for the range check.
-    assert sorted(calls) == sorted([[f"pc2@{s[:7]}", f"pc@{s[:7]}"] for s in shas] + [["r"]])
 
 
 def test_missing_entry_retried_alone_then_errors(repo, tmp_path):
@@ -189,15 +182,6 @@ def test_truncation_keeps_every_file_visible(repo, monkeypatch):
     run(repo, {"*": ans(0.1)}, ("a", check_toml("a")), config="[run]\nmax_diff_chars = 2000\n")
     assert "def test_x():" in captured["stdin"]  # the small later file is shown whole
     assert "more characters of this file not shown" in captured["stdin"]
-
-
-def test_max_commits_limits_per_commit(repo):
-    for _ in range(4):
-        repo.commit()
-    res = run(repo, {"*": ans(0.1)}, ("pc", check_toml("pc", scope="per_commit")),
-              config="[run]\nmax_commits = 2\n")
-    assert len(res.entries) == 2
-    assert any("skipped 2" in n for n in res.notes)
 
 
 def test_prompt_contains_inputs_and_untrusted_preamble(repo, monkeypatch):

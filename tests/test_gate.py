@@ -50,15 +50,13 @@ def test_block_denies_with_findings(enabled, tmp_path):
     assert sha  # commit exists
 
 
-def test_per_commit_block_names_commit(enabled):
+def test_block_reviews_commits_together(enabled):
     enabled.commit()
-    sha = enabled.commit()
-    (enabled.path / ".acc/checks/pc.toml").write_text(check_toml("pc", scope="per_commit"))
-    set_answers(enabled, {"a": ans(0.1), f"pc@{sha[:7]}": ans(0.9, "bad"), "pc": ans(0.1)})
-    # check file is untracked, the gate reads the working tree
+    enabled.commit()
+    set_answers(enabled, {"a": ans(0.9, "bad")})
     reason = gate(enabled, "git push")["hookSpecificOutput"]["permissionDecisionReason"]
-    assert "1 of 2 commits failed" in reason
-    assert f"{sha[:7]} pc" in reason
+    assert "push blocked (2 commits reviewed together)" in reason
+    assert "- [block] a (answer: 0.9): bad" in reason
 
 
 def test_warn_adds_context(enabled):

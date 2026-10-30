@@ -35,7 +35,7 @@ def _finding_text(f: dict) -> str:
 
 
 def format_result(res: RunResult) -> str:
-    """Agent-facing feedback naming the commit for each finding."""
+    """Agent-facing feedback: each check's answer about the pushed commits as a whole."""
     lines: list[str] = []
     if res.secret_blocked:
         lines.append("acc: push blocked by the local secret scan (no model was called).")
@@ -49,19 +49,14 @@ def format_result(res: RunResult) -> str:
     blocks = [e for e in res.entries if e.verdict == "block"]
     warns = [e for e in res.entries if e.verdict == "warn"]
     n = len(res.commits)
+    reviewed = f"{n} commit{'s' if n != 1 else ''} reviewed together"
     if blocks:
-        failed = {e.commit for e in blocks if e.commit}
-        whole = any(e.commit is None for e in blocks)
-        what = f"{len(failed)} of {n} commit{'s' if n != 1 else ''} failed" if failed else ""
-        if whole:
-            what = (what + "; " if what else "") + "the combined changes failed"
-        lines.append(f"acc: push blocked, {what}.")
+        lines.append(f"acc: push blocked ({reviewed}).")
     elif warns:
-        lines.append(f"acc: push allowed with warnings ({n} commit{'s' if n != 1 else ''} reviewed).")
+        lines.append(f"acc: push allowed with warnings ({reviewed}).")
 
     def emit(e, label):
-        where = e.commit or "all commits"
-        head = f"- [{label}] {where} {e.check_id}"
+        head = f"- [{label}] {e.check_id}"
         if e.error:
             lines.append(f"{head}: check could not run ({e.error})")
             return
@@ -120,7 +115,7 @@ def decide(command: str, cwd: Path, agent: str) -> Decision:
         "command": command, "range": res.range, "commits": len(res.commits),
         "diff_sha256": res.diff_sha256, "diff_chars": res.diff_chars, "truncated": res.truncated,
         "calls": res.calls,
-        "checks": [{"id": e.check_id, "commit": e.commit, "answer": e.answer, "verdict": e.verdict,
+        "checks": [{"id": e.check_id, "answer": e.answer, "verdict": e.verdict,
                     **({"error": e.error} if e.error else {})} for e in res.entries],
         "secret_hits": len([h for h in res.secret_hits if h.severity == "block"]),
         "verdict": res.verdict, "latency_ms": res.latency_ms,

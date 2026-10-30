@@ -21,7 +21,6 @@ from .secrets import SecretHit
 class EntryResult:
     check_id: str
     key: str
-    commit: str | None  # short sha for per-commit entries
     status: str  # check status at run time
     raw_verdict: str  # what the verdict table says
     verdict: str  # after advisory demotion and error handling
@@ -69,9 +68,9 @@ def demote(check: Check, verdict: str) -> str:
 def _batches(entries: list[prompt.Entry], size: int) -> list[list[prompt.Entry]]:
     """Group entries into calls of up to `size` checks, never mixing data blocks.
 
-    Several commits in one prompt make each answer depend on its neighbours: the same
+    Several ranges in one prompt make each answer depend on its neighbours: the same
     commit was judged differently depending on which commits shared the call. Checks
-    about the same commit (or the same combined range) still share a call.
+    about the same range still share a call.
     """
     by_block: dict[str, list[prompt.Entry]] = {}
     for e in sorted(entries, key=lambda e: (e.context.label, e.check.id)):
@@ -99,8 +98,7 @@ def execute(entries: list[prompt.Entry], backend: Backend, cfg: Config) -> tuple
 
     def settle(e: prompt.Entry, raw: object, err: str, truncated: bool) -> EntryResult | None:
         c = e.check
-        base = dict(check_id=c.id, key=e.key, commit=e.context.label if e.context.commit else None,
-                    status=c.status, truncated=truncated)
+        base = dict(check_id=c.id, key=e.key, status=c.status, truncated=truncated)
         if err:
             return EntryResult(raw_verdict=on_error, verdict=demote(c, on_error), error=err, **base)
         if raw is None:
@@ -187,6 +185,7 @@ def review(cfg: Config, cwd: Path, push: PushRange, checks: list[Check], backend
 
     excludes = cfg.run["exclude_globs"]
     scan = bool(cfg.run["secret_scan"])
+    # Secrets are scanned per commit: one added and then removed is still in the pushed history.
     commit_ctx = {sha: diffs.commit_context(cwd, sha, excludes, scan) for sha in push.commits}
     range_ctx = diffs.range_context(cwd, [(r.name, r.base, r.tip) for r in push.refs], push.commits,
                                     excludes, scan)
@@ -208,28 +207,13 @@ def review(cfg: Config, cwd: Path, push: PushRange, checks: list[Check], backend
     res.diff_chars = len(range_ctx.diff)
     res.skipped_files = range_ctx.skipped
 
-    # per_commit checks cover the newest max_commits non-merge commits.
-    per_commit = [s for s in push.commits if not diffs.is_merge(cwd, s)][-cfg.run["max_commits"]:]
-    if len(push.commits) > len(per_commit):
-        skipped = len(push.commits) - len(per_commit)
-        res.notes.append(f"Per-commit checks skipped {skipped} older or merge commit(s).")
-
+    # Each check sees the whole push at once: the combined diff and every commit message.
     entries: list[prompt.Entry] = []
     for c in checks:
-        if c.scope == "range":
-            if _matches(c, range_ctx.files):
-                entries.append(prompt.Entry(c.id, c, range_ctx))
-            else:
-                res.checks_skipped.append(c.id)
+        if _matches(c, range_ctx.files):
+            entries.append(prompt.Entry(c.id, c, range_ctx))
         else:
-            matched = False
-            for sha in per_commit:
-                ctx = commit_ctx[sha]
-                if _matches(c, ctx.files):
-                    entries.append(prompt.Entry(f"{c.id}@{ctx.label}", c, ctx))
-                    matched = True
-            if not matched:
-                res.checks_skipped.append(c.id)
+            res.checks_skipped.append(c.id)
 
     res.entries, res.calls = execute(entries, backend, cfg)
     res.truncated = any(e.truncated for e in res.entries)

@@ -29,11 +29,12 @@ add_check (it starts as `proposed`), then grade_check it against history and rep
 result before promote_check moves it to `advisory` or `active`."""
 
 SPEC_HELP = (
-    "Check spec as a JSON object or TOML text with the check file fields: id, title, scope "
-    "(range|per_commit), applies_to (globs), inputs (diff|message|file_list), "
+    "Check spec as a JSON object or TOML text with the check file fields: id, title, "
+    "applies_to (globs), inputs (diff|message|file_list), "
     "question {type: bool|choice|score, instructions, labels | levels}, verdict, and optional "
-    "grading {terms, expect_fail}. For bool checks `answer` is the probability that the "
-    "question's answer is yes, so phrase the question so that yes means a problem."
+    "grading {terms, expect_fail}. A check answers once about all the pushed commits together "
+    "(their combined diff and every message). For bool checks `answer` is the probability that "
+    "the question's answer is yes, so phrase the question so that yes means a problem."
 )
 
 
@@ -51,7 +52,7 @@ def _run_payload(res: RunResult) -> dict:
         "commits": [c[:7] for c in res.commits],
         "entries": [
             {
-                "check": e.check_id, "commit": e.commit, "status": e.status, "answer": e.answer,
+                "check": e.check_id, "status": e.status, "answer": e.answer,
                 "verdict": e.verdict, "raw_verdict": e.raw_verdict, "summary": e.summary,
                 "findings": e.findings, **({"error": e.error} if e.error else {}),
             }
@@ -91,12 +92,12 @@ def build_server(agent: str, cwd: Path | None = None) -> MCPServer:
 
     @server.tool()
     def list_checks(status: Literal["proposed", "advisory", "active"] | None = None) -> CallToolResult:
-        """List checks with id, title, type, scope, status, author and grade result."""
+        """List checks with id, title, type, status, author and grade result."""
         _, cfg = project()
         rows = ops.list_checks(cfg, status)
         lines = [
             f"{r['id']}: INVALID ({'; '.join(r['errors'])})" if r.get("invalid") else
-            f"{r['id']} [{r['status']}, {r['type']}, {r['scope']}, by {r['author']}, grade {r['grade']}]: {r['title']}"
+            f"{r['id']} [{r['status']}, {r['type']}, by {r['author']}, grade {r['grade']}]: {r['title']}"
             for r in rows
         ]
         return _result("\n".join(lines) or "No checks defined.", {"checks": rows})

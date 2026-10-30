@@ -3,7 +3,6 @@ title = "Each commit message describes its diff"
 enabled = true
 status = "advisory"
 author = "user"
-scope = "per_commit"
 applies_to = ["**/*"]
 inputs = ["diff", "message"]
 

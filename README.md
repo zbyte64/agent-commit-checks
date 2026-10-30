@@ -101,6 +101,11 @@ Put the **MCP server** in `.omp/mcp.json` (project) or `~/.omp/agent/mcp.json` (
 
 Phrase `bool` questions so that "yes" means there is a problem.
 
+A check answers once for the whole push. The model sees the combined diff of every pushed
+commit and each commit's message, prefixed by its short sha. There is no per-commit mode.
+Secrets are still scanned in each commit, so one that is added and then deleted in a later
+commit still blocks the push.
+
 Statuses: `proposed` checks run only when named, `advisory` checks run in the gate but only
 warn, and `active` checks can block. `active` needs a passing grade (`acc grade <id>`) for the
 check's current contents. The grade hash ignores the `status` line, so promotion does not
@@ -151,11 +156,13 @@ holds hashes and sizes only, never diff text or secrets.
   lines are redacted before the diff goes to the model. `block` patterns block with no
   model call.
 - `update_check` on an `active` check moves it back to `advisory`, because its grade is cleared.
-- A model call holds the checks for one commit, or for the combined range, and never mixes
-  commits. With 8 commits per call, a commit's answer depended on the other commits in the
-  prompt. On this repo's history, Haiku judged `ddc489c` differently batched (3 of 3) than
-  alone (3 of 3). A push with N commits therefore makes N calls for per-commit checks, run
-  `run.parallel` at a time. A grade makes one call per sampled commit, plus one per rerun.
+- Every check reviews the whole pushed range as one unit. The handoff's `per_commit` scope and
+  `run.max_commits` are gone, and a check file with a `scope` line fails validation. A push
+  makes one call per `max_checks_per_call` checks.
+- Separately graded ranges never share a model call. When 8 commits, each to be judged on its
+  own, shared a prompt, each answer depended on the others: on this repo's history, Haiku judged
+  `ddc489c` one way in 3 of 3 batched runs and the other way in 3 of 3 runs alone. A grade makes
+  one call per sampled range, plus one per rerun.
 - The omp extension ships inside the package (`src/acc/adapters/omp/acc.ts`), not in a
   top-level `adapters/`, so an installed `acc` can copy it.
 - The `omp -p` call adds `--no-extensions`, `--no-skills`, `--no-rules`, `--no-context-files`,

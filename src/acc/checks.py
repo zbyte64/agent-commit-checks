@@ -13,7 +13,6 @@ from .config import tomllib
 
 ID_RE = re.compile(r"^[a-z0-9-]+$")
 STATUSES = ("proposed", "advisory", "active")
-SCOPES = ("range", "per_commit")
 INPUTS = ("diff", "message", "file_list")
 TYPES = ("bool", "choice", "score")
 VERDICTS = ("pass", "warn", "block")
@@ -41,7 +40,6 @@ class Check:
     status: str = "proposed"
     enabled: bool = True
     author: str = "user"
-    scope: str = "range"
     applies_to: list[str] = field(default_factory=lambda: ["**/*"])
     inputs: list[str] = field(default_factory=lambda: ["diff"])
     labels: dict[str, str] = field(default_factory=dict)
@@ -69,7 +67,6 @@ class Check:
             "enabled": self.enabled,
             "status": self.status,
             "author": self.author,
-            "scope": self.scope,
             "applies_to": self.applies_to,
             "inputs": self.inputs,
             "question": {"type": self.question_type, "instructions": self.instructions},
@@ -109,8 +106,9 @@ def validate_dict(d: dict, expected_id: str | None = None) -> list[str]:
         errs.append(f"status must be one of {', '.join(STATUSES)}")
     if d.get("author", "user") not in ("user", "agent"):
         errs.append("author must be 'user' or 'agent'")
-    if d.get("scope", "range") not in SCOPES:
-        errs.append(f"scope must be one of {', '.join(SCOPES)}")
+    if "scope" in d:
+        errs.append("scope was removed: every check reviews the whole range of pushed commits; "
+                    "delete the scope line")
     applies = d.get("applies_to", ["**/*"])
     if not _is_str_list(applies) or not applies:
         errs.append("applies_to must be a non-empty list of globs")
@@ -186,8 +184,8 @@ def validate_dict(d: dict, expected_id: str | None = None) -> list[str]:
         if "terms" in g and not _is_str_list(g["terms"]):
             errs.append("grading.terms must be a list of strings")
         if "expect_fail" in g and not _is_str_list(g["expect_fail"]):
-            errs.append("grading.expect_fail must be a list of commit SHAs")
-    known = {"id", "title", "enabled", "status", "author", "scope", "applies_to", "inputs",
+            errs.append("grading.expect_fail must be a list of commit SHAs or A..B ranges")
+    known = {"id", "title", "enabled", "status", "author", "applies_to", "inputs",
              "question", "verdict", "grading"}
     unknown = set(d) - known
     if unknown:
@@ -206,7 +204,6 @@ def from_dict(d: dict, path: Path | None = None, text: str = "") -> Check:
         status=d.get("status", "proposed"),
         enabled=d.get("enabled", True),
         author=d.get("author", "user"),
-        scope=d.get("scope", "range"),
         applies_to=list(d.get("applies_to", ["**/*"])),
         inputs=list(d.get("inputs", ["diff"])),
         labels=dict(q.get("labels", {})),
@@ -352,7 +349,7 @@ def _toml_key(k: str) -> str:
 def dump_check(d: dict) -> str:
     """Serialize a check dict in the canonical file layout."""
     lines = []
-    for key in ("id", "title", "enabled", "status", "author", "scope", "applies_to", "inputs"):
+    for key in ("id", "title", "enabled", "status", "author", "applies_to", "inputs"):
         if key in d:
             lines.append(f"{key} = {_toml_value(d[key])}")
     for table in ("question", "verdict", "grading"):

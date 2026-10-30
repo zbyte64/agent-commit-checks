@@ -3,7 +3,6 @@ title = "No leftover debugging code"
 enabled = true
 status = "advisory"
 author = "user"
-scope = "range"
 applies_to = ["**/*.py", "**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.go", "**/*.rs", "**/*.rb"]
 inputs = ["diff"]
 

@@ -3,7 +3,6 @@ title = "Source changes come with tests"
 enabled = true
 status = "active"
 author = "user"
-scope = "per_commit"
 applies_to = ["src/**/*.py"]
 inputs = ["diff", "file_list", "message"]
 

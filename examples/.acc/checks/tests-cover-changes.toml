@@ -3,7 +3,6 @@ title = "Behavior changes come with tests"
 enabled = true
 status = "proposed"
 author = "user"
-scope = "range"
 applies_to = ["src/**", "lib/**", "app/**"]
 inputs = ["diff", "file_list"]
 

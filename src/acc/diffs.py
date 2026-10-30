@@ -1,4 +1,4 @@
-"""Build the per-commit and per-range inputs that checks see."""
+"""Build the range inputs that checks see, and the per-commit inputs the secret scan reads."""
 
 from __future__ import annotations
 
@@ -14,9 +14,9 @@ FILE_HEADER = re.compile(r"^diff --git a/(.*?) b/(.*)$")
 
 @dataclass
 class Context:
-    """One unit of input: a single commit, or the combined diff of a push."""
+    """One unit of input: a single commit (for the secret scan), or the combined diff of a range."""
 
-    label: str  # "range" or a short sha
+    label: str  # data block id: "range", a short sha, or "<base7>..<tip7>" in grading
     commit: str | None  # full sha for single-commit contexts
     diff: str  # filtered and redacted, before truncation
     message: str
@@ -97,10 +97,6 @@ def build_context(cwd: Path, label: str, raw: str, message: str, exclude_globs: 
 
 def commit_message(cwd: Path, sha: str) -> str:
     return g.git(cwd, "log", "-1", "--format=%B", sha).strip()
-
-
-def is_merge(cwd: Path, sha: str) -> bool:
-    return len(g.git(cwd, "rev-list", "--parents", "-n", "1", sha).split()) > 2
 
 
 def commit_context(cwd: Path, sha: str, exclude_globs: list[str], scan: bool = True) -> Context:

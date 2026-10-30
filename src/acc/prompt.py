@@ -20,7 +20,7 @@ SYSTEM = (
 
 @dataclass
 class Entry:
-    key: str  # "<check id>" or "<check id>@<short sha>"
+    key: str  # "<check id>", or "<check id>@<range label>" when grading several ranges
     check: Check
     context: Context
 
@@ -69,6 +69,8 @@ def build(entries: list[Entry], max_diff_chars: int) -> tuple[str, str, dict, di
 
     lines = [
         f"Answer each check below. The data is on stdin, in <{tag}> blocks identified by id.",
+        "Each block is one range of commits: the combined diff of all of them, and each "
+        "commit's message prefixed by its short sha. Judge the range as a whole.",
         "",
         'Return JSON: {"checks": {"<check key>": {"answer": ..., "findings": [...], "summary": "..."}}}',
         "- findings: specific problems, each {\"file\", \"line\", \"message\"}; `line` is the line "

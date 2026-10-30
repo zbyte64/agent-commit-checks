@@ -81,8 +81,7 @@ def cmd_list(a: argparse.Namespace) -> int:
             print(f"{r['id']:<32} INVALID  {'; '.join(r['errors'])}")
             continue
         flag = "" if r["enabled"] else " (disabled)"
-        print(f"{r['id']:<32} {r['status']:<9} {r['type']:<6} {r['scope']:<10} "
-              f"{r['author']:<5} grade={r['grade']}{flag}")
+        print(f"{r['id']:<32} {r['status']:<9} {r['type']:<6} {r['author']:<5} grade={r['grade']}{flag}")
     return 0
 
 
