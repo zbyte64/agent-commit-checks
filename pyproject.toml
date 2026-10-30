@@ -16,7 +16,7 @@ mcp = ["mcp>=2.3"]
 acc = "acc.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8", "mcp>=2.3"]
+dev = ["pytest>=8", "mcp>=2.3", "ruff>=0.15"]
 
 [build-system]
 requires = ["hatchling"]
@@ -29,4 +29,8 @@ packages = ["src/acc"]
 testpaths = ["tests"]
 
 [tool.ruff]
-line-length = 110
+line-length = 120
+
+[tool.ruff.lint]
+# Explicit so newer ruff releases (whose defaults grow) don't change what CI enforces.
+select = ["E", "F", "W"]
