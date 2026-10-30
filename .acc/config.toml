@@ -2,7 +2,7 @@
 # absolute paths (hooks launched from VS Code may not see your shell PATH).
 
 [backends.claude]
-command = "/home/jasonkraus/.local/bin/claude"
+command = "~/.local/bin/claude"
 model = "haiku"
 
 # Route an agent to a different backend, e.g. the fake backend in tests:
