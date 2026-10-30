@@ -147,6 +147,11 @@ holds hashes and sizes only, never diff text or secrets.
   lines are redacted before the diff goes to the model. `block` patterns block with no
   model call.
 - `update_check` on an `active` check moves it back to `advisory`, because its grade is cleared.
+- A model call holds the checks for one commit, or for the combined range, and never mixes
+  commits. With 8 commits per call, a commit's answer depended on the other commits in the
+  prompt. On this repo's history, Haiku judged `ddc489c` differently batched (3 of 3) than
+  alone (3 of 3). A push with N commits therefore makes N calls for per-commit checks, run
+  `run.parallel` at a time. A grade makes one call per sampled commit, plus one per rerun.
 - The omp extension ships inside the package (`src/acc/adapters/omp/acc.ts`), not in a
   top-level `adapters/`, so an installed `acc` can copy it.
 - The `omp -p` call adds `--no-extensions`, `--no-skills`, `--no-rules`, `--no-context-files`,

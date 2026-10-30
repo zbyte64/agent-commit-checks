@@ -67,8 +67,17 @@ def demote(check: Check, verdict: str) -> str:
 
 
 def _batches(entries: list[prompt.Entry], size: int) -> list[list[prompt.Entry]]:
-    ordered = sorted(entries, key=lambda e: (e.context.label, e.check.id))
-    return [ordered[i: i + size] for i in range(0, len(ordered), max(1, size))]
+    """Group entries into calls of up to `size` checks, never mixing data blocks.
+
+    Several commits in one prompt make each answer depend on its neighbours: the same
+    commit was judged differently depending on which commits shared the call. Checks
+    about the same commit (or the same combined range) still share a call.
+    """
+    by_block: dict[str, list[prompt.Entry]] = {}
+    for e in sorted(entries, key=lambda e: (e.context.label, e.check.id)):
+        by_block.setdefault(e.context.label, []).append(e)
+    step = max(1, size)
+    return [group[i: i + step] for group in by_block.values() for i in range(0, len(group), step)]
 
 
 def _ask(backend: Backend, batch: list[prompt.Entry], cfg: Config) -> tuple[dict | None, str, bool, dict]:

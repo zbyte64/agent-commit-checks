@@ -76,7 +76,7 @@ def test_grade_pass_writes_record(repo):
     cfg, check = setup(repo)
     g = grading.grade(cfg, repo.path, check, get_backend(cfg, "claude"))
     assert g.result == "pass"
-    assert g.metrics["sample_size"] == 20 and g.metrics["calls"] == 3  # 20 entries / 8 per call
+    assert g.metrics["sample_size"] == 20 and g.metrics["calls"] == 20  # one call per commit
     rec = json.loads((cfg.grades_dir / "dbg.json").read_text())
     assert rec["check_sha256"] == check.content_hash
     assert len(rec["sample"]) == 20 and {s["reason"] for s in rec["sample"]} == {"top-score", "random"}
@@ -89,7 +89,7 @@ def test_grade_fails_on_block_rate(repo):
     g = grading.grade(cfg, repo.path, check, get_backend(cfg, "claude"))
     assert g.result == "fail" and g.metrics["block_rate"] == 1.0
     # blocked and warned units are re-run for stability
-    assert g.metrics["calls"] == 6
+    assert g.metrics["calls"] == 40
 
 
 def test_expect_fail_catch_rate(repo):

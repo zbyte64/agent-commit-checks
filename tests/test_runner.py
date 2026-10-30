@@ -72,6 +72,25 @@ def test_batching_and_parallel_calls(repo):
     assert len(res.entries) == 5
 
 
+def test_commits_never_share_a_call(repo, monkeypatch):
+    shas = [repo.commit() for _ in range(3)]
+    from acc.backends.fake import FakeBackend
+
+    calls = []
+    orig = FakeBackend.ask
+
+    def spy(self, system, prompt, stdin, schema, timeout):
+        calls.append(sorted(schema["properties"]["checks"]["required"]))
+        return orig(self, system, prompt, stdin, schema, timeout)
+
+    monkeypatch.setattr(FakeBackend, "ask", spy)
+    res = run(repo, {"*": ans(0.1)}, ("pc", check_toml("pc", scope="per_commit")),
+              ("pc2", check_toml("pc2", scope="per_commit")), ("r", check_toml("r")))
+    assert res.verdict == "pass" and res.calls == 4
+    # One call per commit holding both of its per-commit checks, plus one for the range check.
+    assert sorted(calls) == sorted([[f"pc2@{s[:7]}", f"pc@{s[:7]}"] for s in shas] + [["r"]])
+
+
 def test_missing_entry_retried_alone_then_errors(repo, tmp_path):
     repo.commit()
     res = run(repo, {"a": ans(0.1), "b": "omit"}, ("a", check_toml("a")), ("b", check_toml("b")))
