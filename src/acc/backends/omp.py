@@ -26,6 +26,8 @@ LEAN_FLAGS = (
     "--no-lsp",
     "--no-title",
 )
+# Turns omp's memory backend off for the call, so no diff is stored or recalled across calls.
+OVERLAY = Path(__file__).with_name("omp_overlay.yml")
 # Thinking is off so the model answers like a decision model.
 THINKING = "off"
 # Provider errors worth one more attempt; auth, billing and bad-request errors are not.
@@ -46,6 +48,7 @@ class OmpBackend:
             self.command, "-p",
             "--model", self.model,
             *LEAN_FLAGS,
+            "--config", str(OVERLAY),
             "--thinking", THINKING,
             "--system-prompt", system,
             "--mode", "json",

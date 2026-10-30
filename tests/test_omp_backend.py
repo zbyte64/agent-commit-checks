@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -80,6 +81,8 @@ def test_argv_flags():
     assert argv[argv.index("--system-prompt") + 1] == "sys"
     # No tools, no session and no extensions: one text answer, and the gate cannot recurse.
     assert {"--no-tools", "--no-session", "--no-extensions"} <= set(argv)
+    # The overlay turns omp memory off, so one review's diff is never recalled into the next.
+    assert Path(argv[argv.index("--config") + 1]).is_file()
     assert argv[-1].startswith("prompt") and '{"type":"object"}' in argv[-1]
 
 
