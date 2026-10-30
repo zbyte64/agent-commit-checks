@@ -1,0 +1,21 @@
+id = "commit-message-matches-diff"
+title = "Each commit message describes its diff"
+enabled = true
+status = "advisory"
+author = "user"
+scope = "per_commit"
+applies_to = ["**/*"]
+inputs = ["diff", "message"]
+
+[question]
+type = "choice"
+instructions = "Does the commit message accurately describe the commit's changes? Judge the substance, not the style; a short message that names the main change is accurate."
+labels = { accurate = "Message matches the changes", partial = "Message omits notable changes", wrong = "Message describes something else" }
+
+[verdict]
+accurate = "pass"
+partial = "warn"
+wrong = "block"
+
+[grading]
+terms = []

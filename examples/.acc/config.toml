@@ -1,0 +1,27 @@
+# agent-commit-checks project config. Binary paths are per machine, so prefer
+# absolute paths (hooks launched from VS Code may not see your shell PATH).
+
+[backends.claude]
+command = "/home/you/.local/bin/claude"
+model = "haiku"
+
+# Route an agent to a different backend, e.g. the fake backend in tests:
+# [agents.claude]
+# backend = "fake"
+
+[run]
+max_diff_chars = 12000
+timeout_seconds = 90
+parallel = 4
+max_checks_per_call = 8
+max_commits = 20          # per_commit checks cover the newest N commits
+on_backend_error = "block" # warn | block
+secret_scan = true
+# exclude_globs = ["**/package-lock.json", "**/*.min.js"]
+
+[grading]
+sample_size = 20
+min_sample = 10
+max_block_rate = 0.10
+max_unstable = 1
+max_history = 500
