@@ -5,6 +5,10 @@
 command = "~/.local/bin/claude"
 model = "haiku"
 
+[backends.omp]
+command = "~/.bun/bin/omp"
+model = "@decision"        # omp role alias: set modelRoles.decision in ~/.omp/agent/config.yml
+
 # Route an agent to a different backend, e.g. the fake backend in tests:
 # [agents.claude]
 # backend = "fake"
