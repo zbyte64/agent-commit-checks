@@ -1,0 +1,67 @@
+{
+ "type": "result",
+ "subtype": "success",
+ "is_error": false,
+ "api_error_status": null,
+ "duration_ms": 6658,
+ "duration_api_ms": 7367,
+ "num_turns": 2,
+ "result": "",
+ "stop_reason": "end_turn",
+ "session_id": "eaf7a800-5f80-4b60-8521-0dd209d1d132",
+ "total_cost_usd": 0.005647,
+ "usage": {
+  "input_tokens": 2414,
+  "cache_creation_input_tokens": 0,
+  "cache_read_input_tokens": 0,
+  "output_tokens": 559,
+  "server_tool_use": {
+   "web_search_requests": 0,
+   "web_fetch_requests": 0
+  },
+  "service_tier": "standard",
+  "cache_creation": {
+   "ephemeral_1h_input_tokens": 0,
+   "ephemeral_5m_input_tokens": 0
+  },
+  "inference_geo": "",
+  "iterations": [
+   {
+    "input_tokens": 1447,
+    "output_tokens": 92,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0,
+    "cache_creation": {
+     "ephemeral_5m_input_tokens": 0,
+     "ephemeral_1h_input_tokens": 0
+    },
+    "type": "message"
+   }
+  ],
+  "speed": "standard"
+ },
+ "modelUsage": {
+  "claude-haiku-4-5-20251001": {
+   "inputTokens": 2782,
+   "outputTokens": 573,
+   "cacheReadInputTokens": 0,
+   "cacheCreationInputTokens": 0,
+   "webSearchRequests": 0,
+   "costUSD": 0.005647,
+   "contextWindow": 200000,
+   "maxOutputTokens": 32000
+  }
+ },
+ "permission_denials": [],
+ "structured_output": {
+  "checks": {
+   "dbg": {
+    "answer": 0.95,
+    "summary": "The diff adds console.log('x'), which is a direct console logging statement. This is debug output that will be printed to the console when executed. High confidence it leaves debug output."
+   }
+  }
+ },
+ "terminal_reason": "completed",
+ "fast_mode_state": "off",
+ "uuid": "aa0248c1-7197-44e4-933d-fee2676110dc"
+}

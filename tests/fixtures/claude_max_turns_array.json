@@ -1,0 +1,174 @@
+[
+ {
+  "type": "rate_limit_event",
+  "rate_limit_info": {
+   "status": "allowed",
+   "resetsAt": 1793391000,
+   "rateLimitType": "five_hour",
+   "overageStatus": "allowed",
+   "overageResetsAt": 1793491200,
+   "isUsingOverage": false
+  },
+  "uuid": "35fa9c63-9520-44cc-b0d5-cae7356fb1b9",
+  "session_id": "1c646888-f685-41a3-9ef4-e8f967ce60f0"
+ },
+ {
+  "type": "assistant",
+  "message": {
+   "model": "claude-haiku-4-5-20251001",
+   "id": "msg_011CgYpmt11T88LMqzJNoQiD",
+   "type": "message",
+   "role": "assistant",
+   "content": [],
+   "container": null,
+   "stop_reason": null,
+   "stop_sequence": null,
+   "stop_details": null,
+   "usage": {
+    "input_tokens": 9,
+    "cache_creation_input_tokens": 86692,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+     "ephemeral_5m_input_tokens": 0,
+     "ephemeral_1h_input_tokens": 86692
+    },
+    "output_tokens": 1,
+    "service_tier": "standard",
+    "inference_geo": "not_available",
+    "speed": "standard"
+   },
+   "diagnostics": null,
+   "context_management": null
+  },
+  "parent_tool_use_id": null,
+  "session_id": "1c646888-f685-41a3-9ef4-e8f967ce60f0",
+  "uuid": "10464f5e-3a26-4ad7-a2b2-0de0f4abe97b"
+ },
+ {
+  "type": "assistant",
+  "message": {
+   "model": "claude-haiku-4-5-20251001",
+   "id": "msg_011CgYpmt11T88LMqzJNoQiD",
+   "type": "message",
+   "role": "assistant",
+   "content": [
+    {
+     "type": "tool_use",
+     "id": "toolu_01UonP1nVnPA2Q8tyNaENdck",
+     "name": "StructuredOutput",
+     "input": {
+      "checks": {
+       "dbg": {
+        "answer": 0.99,
+        "summary": "Line adds console.log('x'), which is debug output. High confidence (0.99 rather than 1.0 to account for edge cases like code generation or intentional logging)"
+       }
+      }
+     },
+     "caller": {
+      "type": "direct"
+     }
+    }
+   ],
+   "container": null,
+   "stop_reason": null,
+   "stop_sequence": null,
+   "stop_details": null,
+   "usage": {
+    "input_tokens": 9,
+    "cache_creation_input_tokens": 86692,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+     "ephemeral_5m_input_tokens": 0,
+     "ephemeral_1h_input_tokens": 86692
+    },
+    "output_tokens": 1,
+    "service_tier": "standard",
+    "inference_geo": "not_available",
+    "speed": "standard"
+   },
+   "diagnostics": null,
+   "context_management": null
+  },
+  "parent_tool_use_id": null,
+  "session_id": "1c646888-f685-41a3-9ef4-e8f967ce60f0",
+  "uuid": "2905b0c7-7564-4d09-bd55-91a84281155b"
+ },
+ {
+  "type": "user",
+  "message": {
+   "role": "user",
+   "content": [
+    {
+     "tool_use_id": "toolu_01UonP1nVnPA2Q8tyNaENdck",
+     "type": "tool_result",
+     "content": "Structured output provided successfully"
+    }
+   ]
+  },
+  "parent_tool_use_id": null,
+  "session_id": "1c646888-f685-41a3-9ef4-e8f967ce60f0",
+  "uuid": "027909bf-c336-4e85-8177-7b1c2dfbc0a5",
+  "timestamp": "2026-10-30T17:34:50.808Z",
+  "tool_use_result": "Structured output provided successfully"
+ },
+ {
+  "type": "result",
+  "subtype": "error_max_turns",
+  "duration_ms": 3479,
+  "duration_api_ms": 4322,
+  "is_error": true,
+  "num_turns": 2,
+  "stop_reason": "tool_use",
+  "session_id": "1c646888-f685-41a3-9ef4-e8f967ce60f0",
+  "total_cost_usd": 0.110043,
+  "usage": {
+   "input_tokens": 9,
+   "cache_creation_input_tokens": 86692,
+   "cache_read_input_tokens": 0,
+   "output_tokens": 245,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 86692,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "",
+   "iterations": [
+    {
+     "input_tokens": 9,
+     "output_tokens": 245,
+     "cache_read_input_tokens": 0,
+     "cache_creation_input_tokens": 86692,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 86692
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "modelUsage": {
+   "claude-haiku-4-5-20251001": {
+    "inputTokens": 383,
+    "outputTokens": 259,
+    "cacheReadInputTokens": 0,
+    "cacheCreationInputTokens": 86692,
+    "webSearchRequests": 0,
+    "costUSD": 0.110043,
+    "contextWindow": 200000,
+    "maxOutputTokens": 32000
+   }
+  },
+  "permission_denials": [],
+  "terminal_reason": "max_turns",
+  "fast_mode_state": "off",
+  "uuid": "ab187638-3995-4654-a6fc-c2cb17976987",
+  "errors": [
+   "Reached maximum number of turns (1)"
+  ]
+ }
+]

@@ -1,0 +1,230 @@
+"""The review pipeline shared by `acc gate`, `acc run`, grading and the MCP server."""
+
+from __future__ import annotations
+
+import hashlib
+import time
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+
+from . import diffs
+from . import globs, prompt
+from .backends import Backend, BackendError
+from .checks import AnswerError, Check, describe_answer, validate_entry, worst
+from .config import Config
+from .pushrange import PushRange
+from .secrets import SecretHit
+
+
+@dataclass
+class EntryResult:
+    check_id: str
+    key: str
+    commit: str | None  # short sha for per-commit entries
+    status: str  # check status at run time
+    raw_verdict: str  # what the verdict table says
+    verdict: str  # after advisory demotion and error handling
+    answer: object = None
+    answer_text: str = ""
+    findings: list[dict] = field(default_factory=list)
+    summary: str = ""
+    error: str = ""
+    truncated: bool = False
+
+
+@dataclass
+class RunResult:
+    verdict: str = "pass"
+    entries: list[EntryResult] = field(default_factory=list)
+    secret_hits: list[SecretHit] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+    range: str = ""
+    commits: list[str] = field(default_factory=list)
+    calls: int = 0
+    truncated: bool = False
+    diff_sha256: str = ""
+    diff_chars: int = 0
+    skipped_files: list[str] = field(default_factory=list)
+    checks_skipped: list[str] = field(default_factory=list)  # no matching paths
+    backend: str = ""
+    model: str = ""
+    latency_ms: int = 0
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d["secret_hits"] = [asdict(h) for h in self.secret_hits]
+        return d
+
+
+def demote(check: Check, verdict: str) -> str:
+    """Only `active` checks can block; others report a would-be block as a warning."""
+    return "warn" if verdict == "block" and not check.can_block else verdict
+
+
+# ── executing entries ────────────────────────────────────────────────────────
+
+
+def _batches(entries: list[prompt.Entry], size: int) -> list[list[prompt.Entry]]:
+    ordered = sorted(entries, key=lambda e: (e.context.label, e.check.id))
+    return [ordered[i: i + size] for i in range(0, len(ordered), max(1, size))]
+
+
+def _ask(backend: Backend, batch: list[prompt.Entry], cfg: Config) -> tuple[dict | None, str, bool, dict]:
+    text, stdin, schema, truncated = prompt.build(batch, cfg.run["max_diff_chars"])
+    try:
+        out = backend.ask(prompt.SYSTEM, text, stdin, schema, float(cfg.run["timeout_seconds"]))
+        return out.get("checks", {}), "", False, truncated
+    except BackendError as e:
+        return None, str(e), e.retryable, truncated
+
+
+def execute(entries: list[prompt.Entry], backend: Backend, cfg: Config) -> tuple[list[EntryResult], int]:
+    """Run entries in batched, parallel calls. Missing or invalid entries are retried alone once."""
+    if not entries:
+        return [], 0
+    on_error = cfg.run["on_backend_error"]
+    results: dict[str, EntryResult] = {}
+    calls = 0
+
+    def settle(e: prompt.Entry, raw: object, err: str, truncated: bool) -> EntryResult | None:
+        c = e.check
+        base = dict(check_id=c.id, key=e.key, commit=e.context.label if e.context.commit else None,
+                    status=c.status, truncated=truncated)
+        if err:
+            return EntryResult(raw_verdict=on_error, verdict=demote(c, on_error), error=err, **base)
+        if raw is None:
+            return None
+        try:
+            verdict, findings, summary = validate_entry(c, raw)
+        except AnswerError as ex:
+            return EntryResult(raw_verdict=on_error, verdict=demote(c, on_error),
+                               error=f"invalid answer: {ex}", **base)
+        answer = raw.get("answer")
+        return EntryResult(raw_verdict=verdict, verdict=demote(c, verdict), answer=answer,
+                           answer_text=describe_answer(c, answer), findings=findings,
+                           summary=summary, **base)
+
+    def run_batch(batch: list[prompt.Entry]) -> tuple[list[EntryResult], list[prompt.Entry]]:
+        answers, err, retryable, truncated = _ask(backend, batch, cfg)
+        done, retry = [], []
+        for e in batch:
+            tr = truncated.get(e.context.label, False)
+            if answers is None:
+                if retryable and len(batch) > 1:
+                    retry.append(e)
+                else:
+                    done.append(settle(e, None, err, tr))
+                continue
+            r = settle(e, answers.get(e.key), "", tr)
+            if r is None or r.error:
+                retry.append(e)
+            else:
+                done.append(r)
+        return done, retry
+
+    def run_alone(e: prompt.Entry) -> EntryResult:
+        answers, err, _, truncated = _ask(backend, [e], cfg)
+        tr = truncated.get(e.context.label, False)
+        if answers is None:
+            return settle(e, None, err, tr)
+        r = settle(e, answers.get(e.key), "", tr)
+        return r or settle(e, None, "no answer for this check after retry", tr)
+
+    batches = _batches(entries, cfg.run["max_checks_per_call"])
+    with ThreadPoolExecutor(max_workers=max(1, cfg.run["parallel"])) as pool:
+        retries: list[prompt.Entry] = []
+        for done, retry in pool.map(run_batch, batches):
+            calls += 1
+            for r in done:
+                results[r.key] = r
+            retries.extend(retry)
+        for r in pool.map(run_alone, retries):
+            calls += 1
+            results[r.key] = r
+    return [results[e.key] for e in entries], calls
+
+
+# ── the review pipeline ──────────────────────────────────────────────────────
+
+
+def select_checks(checks: list[Check], ids: list[str] | None, gate: bool,
+                  include_proposed: bool = False) -> list[Check]:
+    if ids:
+        by_id = {c.id: c for c in checks}
+        missing = [i for i in ids if i not in by_id]
+        if missing:
+            raise KeyError(f"unknown check id(s): {', '.join(missing)}")
+        return [by_id[i] for i in ids]
+    if gate:
+        return [c for c in checks if c.runs_in_gate]
+    return [c for c in checks if c.enabled and (include_proposed or c.status != "proposed")]
+
+
+def _matches(check: Check, files: list[str]) -> bool:
+    return any(globs.match_any(f, check.applies_to) for f in files)
+
+
+def review(cfg: Config, cwd: Path, push: PushRange, checks: list[Check], backend: Backend) -> RunResult:
+    started = time.monotonic()
+    res = RunResult(range=push.description, commits=list(push.commits),
+                    backend=backend.name, model=backend.model)
+    if push.note:
+        res.notes.append(push.note)
+    if push.empty:
+        res.latency_ms = int((time.monotonic() - started) * 1000)
+        return res
+
+    excludes = cfg.run["exclude_globs"]
+    scan = bool(cfg.run["secret_scan"])
+    commit_ctx = {sha: diffs.commit_context(cwd, sha, excludes, scan) for sha in push.commits}
+    range_ctx = diffs.range_context(cwd, [(r.name, r.base, r.tip) for r in push.refs], push.commits,
+                                    excludes, scan)
+
+    hits = [h for ctx in commit_ctx.values() for h in ctx.secret_hits if h.severity == "block"]
+    if hits:
+        res.secret_hits = hits
+        res.verdict = "block"
+        res.notes.append("The local secret scan found likely secrets; nothing was sent to a model.")
+        res.latency_ms = int((time.monotonic() - started) * 1000)
+        return res
+    warn_hits = [h for ctx in commit_ctx.values() for h in ctx.secret_hits]
+    if warn_hits:
+        res.secret_hits = warn_hits
+        res.notes.append("Lines matching a secret pattern were redacted before review.")
+
+    res.diff_sha256 = hashlib.sha256(range_ctx.diff.encode()).hexdigest()
+    res.diff_chars = len(range_ctx.diff)
+    res.skipped_files = range_ctx.skipped
+
+    # per_commit checks cover the newest max_commits non-merge commits.
+    per_commit = [s for s in push.commits if not diffs.is_merge(cwd, s)][-cfg.run["max_commits"]:]
+    if len(push.commits) > len(per_commit):
+        skipped = len(push.commits) - len(per_commit)
+        res.notes.append(f"Per-commit checks skipped {skipped} older or merge commit(s).")
+
+    entries: list[prompt.Entry] = []
+    for c in checks:
+        if c.scope == "range":
+            if _matches(c, range_ctx.files):
+                entries.append(prompt.Entry(c.id, c, range_ctx))
+            else:
+                res.checks_skipped.append(c.id)
+        else:
+            matched = False
+            for sha in per_commit:
+                ctx = commit_ctx[sha]
+                if _matches(c, ctx.files):
+                    entries.append(prompt.Entry(f"{c.id}@{ctx.label}", c, ctx))
+                    matched = True
+            if not matched:
+                res.checks_skipped.append(c.id)
+
+    res.entries, res.calls = execute(entries, backend, cfg)
+    res.truncated = any(e.truncated for e in res.entries)
+    if res.truncated:
+        res.notes.append(f"Some diffs were truncated to {cfg.run['max_diff_chars']} characters.")
+    res.verdict = worst([e.verdict for e in res.entries])
+    res.latency_ms = int((time.monotonic() - started) * 1000)
+    return res
+
