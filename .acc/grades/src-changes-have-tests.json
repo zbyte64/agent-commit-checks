@@ -1,8 +1,8 @@
 {
   "check_id": "src-changes-have-tests",
   "check_sha256": "8ed3a0e0c3696639a1f0e89ca6db36226f5da94ec58be9d3731f43a75b058efc",
-  "graded_at": "2026-10-30T18:11:01Z",
-  "head": "85f325b6d00299638c2cb56a81aff4e73a5ff18d",
+  "graded_at": "2026-10-30T18:16:05Z",
+  "head": "84dd78f962c7fd5c53030735fcaac61abf4409da",
   "backend": "claude",
   "model": "haiku",
   "bars": {
@@ -12,8 +12,8 @@
     "sample_size": 20
   },
   "metrics": {
-    "sample_size": 13,
-    "pool_size": 13,
+    "sample_size": 16,
+    "pool_size": 16,
     "block_rate": 0.0,
     "blocked": 0,
     "error_rate": 0.0,
@@ -25,13 +25,43 @@
   "result": "pass",
   "sample": [
     {
+      "sha": "84dd78f962c7fd5c53030735fcaac61abf4409da",
+      "reason": "all",
+      "score": 19,
+      "answer": "covered",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "Changes to src/acc/diffs.py refactoring clipped_diff to share budget fairly across files are tested in tests/test_runner.py with test_truncation_keeps_every_file_visible verifying that small files remain visible when truncation occurs.",
+      "findings": []
+    },
+    {
+      "sha": "eb968d79adf93893020ecf0030d9819f73f42d5b",
+      "reason": "all",
+      "score": 5,
+      "answer": "covered",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "This commit fixes behavior in gate.py and runner.py where secret hits at warn level were masking check findings by introducing a new `secret_blocked` flag, with test coverage added (test_redacted_secret_does_not_mask_check_block).",
+      "findings": []
+    },
+    {
+      "sha": "f52befc2eec6ffbb10f998a545749111dae2bebf",
+      "reason": "all",
+      "score": 19,
+      "answer": "covered",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "This commit changes gitcmd.py to properly handle heredoc bodies and quoted emails by adding new parsing logic (_strip_heredocs function), with test coverage added for these scenarios (test_heredoc_body_is_data, test_email_in_quoted_message_is_not_a_redirect, test_heredoc_fed_to_shell_is_parsed).",
+      "findings": []
+    },
+    {
       "sha": "85f325b6d00299638c2cb56a81aff4e73a5ff18d",
       "reason": "all",
       "score": 6,
       "answer": "covered",
       "verdict": "pass",
       "rerun_verdict": null,
-      "summary": "Source files src/acc/backends/claude.py and src/acc/runner.py modified to support retryable errors and single-entry batch retries have corresponding test coverage in tests/test_claude_backend.py and tests/test_runner.py.",
+      "summary": "Changes to src/acc/backends/claude.py (MAX_TURNS 2\u21924), src/acc/backends/fake.py (retryable error support), and src/acc/runner.py (retry logic) are tested with test_retryable_error_retried_even_for_single_entry_batch and argv flags test.",
       "findings": []
     },
     {
@@ -41,7 +71,7 @@
       "answer": "not_needed",
       "verdict": "pass",
       "rerun_verdict": null,
-      "summary": "Commit only changes how a path is resolved (from resolve() to absolute()) with a comment explaining the behavior change; no new behavior needs testing as this is a refactor of path resolution logic.",
+      "summary": "This commit changes only one line in cli.py, replacing `resolve()` with `absolute()` in a path handling function with a clarifying comment, which is a refactor that doesn't change behavior (both produce an absolute path).",
       "findings": []
     },
     {
@@ -51,7 +81,7 @@
       "answer": "covered",
       "verdict": "pass",
       "rerun_verdict": null,
-      "summary": "Source file src/acc/backends/claude.py modified to increase MAX_TURNS from 2 to 4 and add ENV_OVERRIDES for MAX_THINKING_TOKENS has corresponding test updates in tests/test_claude_backend.py verifying both the argv flags and environment variable handling.",
+      "summary": "Changes to src/acc/backends/claude.py adding MAX_THINKING_TOKENS environment override are tested in tests/test_claude_backend.py with test_thinking_forced_off_even_if_agent_env_enables_it covering the new ENV_OVERRIDES behavior.",
       "findings": []
     },
     {
@@ -61,7 +91,7 @@
       "answer": "covered",
       "verdict": "pass",
       "rerun_verdict": null,
-      "summary": "Source file src/acc/backends/claude.py modified to add SETTINGS constant and disable extended thinking has corresponding test updates in tests/test_claude_backend.py verifying the settings are correctly applied.",
+      "summary": "Changes to src/acc/backends/claude.py adding SETTINGS constant and ENV_OVERRIDES for disabling thinking are tested in tests/test_claude_backend.py with a test for argv flags and thinking forced off.",
       "findings": []
     },
     {
@@ -71,7 +101,7 @@
       "answer": "covered",
       "verdict": "pass",
       "rerun_verdict": null,
-      "summary": "New source file src/acc/mcp_server.py with 186 lines exposing checks as MCP tools has comprehensive test coverage in tests/test_mcp.py with tests for list, run, add, update, and promote operations.",
+      "summary": "New file src/acc/mcp_server.py with MCP server implementation is accompanied by comprehensive tests in tests/test_mcp.py covering list, get, run, test, add, update, promote, and grade operations.",
       "findings": []
     },
     {
@@ -81,7 +111,7 @@
       "answer": "covered",
       "verdict": "pass",
       "rerun_verdict": null,
-      "summary": "New source files src/acc/cli.py, src/acc/gate.py, and src/acc/log.py with CLI commands and gate logic have corresponding test coverage in tests/test_cli.py and tests/test_gate.py.",
+      "summary": "This commit adds new Python modules (cli.py, gate.py, log.py) under src/acc/ and includes comprehensive test coverage with new test files (test_cli.py, test_gate.py) that directly test the behavior changes.",
       "findings": []
     },
     {
@@ -91,7 +121,7 @@
       "answer": "covered",
       "verdict": "pass",
       "rerun_verdict": null,
-      "summary": "New source files src/acc/grading.py (226 lines) and src/acc/ops.py (125 lines) with check grading and operations have corresponding tests in tests/test_grading.py covering grading workflows.",
+      "summary": "New files src/acc/grading.py and src/acc/ops.py with grading and operations logic are accompanied by comprehensive tests in tests/test_grading.py covering filtering, sampling, scoring, and grading behavior.",
       "findings": []
     },
     {
@@ -101,7 +131,7 @@
       "answer": "covered",
       "verdict": "pass",
       "rerun_verdict": null,
-      "summary": "Commit adds Python backend implementations and runner infrastructure with corresponding test files for claude backend and runner functionality.",
+      "summary": "This commit adds new backend modules (backends/__init__.py, claude.py, fake.py), runner, prompt, and diffs modules along with corresponding test files (test_claude_backend.py, test_runner.py) that provide test coverage for the behavior changes.",
       "findings": []
     },
     {
@@ -111,7 +141,7 @@
       "answer": "covered",
       "verdict": "pass",
       "rerun_verdict": null,
-      "summary": "New source file src/acc/pushrange.py with 203 lines of functionality has comprehensive test coverage in tests/test_pushrange.py with 159 lines of tests covering various push scenarios.",
+      "summary": "New file src/acc/pushrange.py with 203 lines of behavior is accompanied by comprehensive tests in tests/test_pushrange.py with 159 lines covering push range resolution, various refspecs, and edge cases.",
       "findings": []
     },
     {
@@ -121,7 +151,7 @@
       "answer": "covered",
       "verdict": "pass",
       "rerun_verdict": null,
-      "summary": "Commit adds git helper functions and git push command parser with corresponding test file (test_gitcmd.py) covering the parser behavior.",
+      "summary": "This commit adds git helper and git push command parser modules (git.py, gitcmd.py) with a comprehensive test file (test_gitcmd.py) containing 15+ test cases covering various push command parsing scenarios.",
       "findings": []
     },
     {
@@ -131,7 +161,7 @@
       "answer": "covered",
       "verdict": "pass",
       "rerun_verdict": null,
-      "summary": "New source file src/acc/secrets.py with 90 lines implementing secret scanning has corresponding tests in tests/test_secrets_globs.py covering scan_diff, redaction, and pattern matching behavior.",
+      "summary": "New file src/acc/secrets.py implementing secret scanning is accompanied by tests in tests/test_secrets_globs.py covering diff scanning, redaction, and glob matching functionality.",
       "findings": []
     },
     {
@@ -141,7 +171,7 @@
       "answer": "covered",
       "verdict": "pass",
       "rerun_verdict": null,
-      "summary": "Commit adds check file format, configuration loading, and validation logic with corresponding test files for checks and configuration functionality.",
+      "summary": "This commit adds check file format, config loading, and glob matching modules (checks.py, config.py, globs.py) along with comprehensive tests (test_checks.py) that cover the parsing, validation, and verdict mapping behavior.",
       "findings": []
     },
     {
@@ -151,7 +181,7 @@
       "answer": "not_needed",
       "verdict": "pass",
       "rerun_verdict": null,
-      "summary": "Commit adds project scaffolding (gitignore, README, pyproject.toml, documentation) and base module initialization with no functional code requiring tests.",
+      "summary": "This commit adds project scaffolding (.gitignore, README.md, pyproject.toml, __init__.py) and documentation, with no behavioral code changes that require tests.",
       "findings": []
     }
   ]
