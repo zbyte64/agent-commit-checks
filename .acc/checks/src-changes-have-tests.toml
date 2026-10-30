@@ -1,0 +1,21 @@
+id = "src-changes-have-tests"
+title = "Source changes come with tests"
+enabled = true
+status = "advisory"
+author = "user"
+scope = "per_commit"
+applies_to = ["src/**/*.py"]
+inputs = ["diff", "file_list", "message"]
+
+[question]
+type = "choice"
+instructions = "This commit changes Python code under src/. Does it add or update tests under tests/ for the behavior it changes? Comments, docstrings, renames, logging and pure refactors that keep behavior the same need no tests. A one-line constant or flag change that existing tests already exercise needs no new tests."
+labels = { covered = "Behavior changes have matching test changes", not_needed = "No behavior change that needs tests", missing = "Behavior changes without any test changes" }
+
+[verdict]
+covered = "pass"
+not_needed = "pass"
+missing = "block"
+
+[grading]
+terms = ["def ", "class ", "return "]

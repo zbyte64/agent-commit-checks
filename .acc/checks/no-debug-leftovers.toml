@@ -1,0 +1,19 @@
+id = "no-debug-leftovers"
+title = "No leftover debugging code"
+enabled = true
+status = "advisory"
+author = "user"
+scope = "range"
+applies_to = ["**/*.py", "**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.go", "**/*.rs", "**/*.rb"]
+inputs = ["diff"]
+
+[question]
+type = "bool"
+instructions = "Do the added lines leave temporary debugging code behind, such as print or console.log calls used for debugging, debugger statements, breakpoint() calls, or commented-out code blocks? Intentional logging through a logger is not debugging code."
+
+[verdict]
+block_at = 0.85
+warn_at = 0.5
+
+[grading]
+terms = ["console.log", "debugger", "print(", "breakpoint()", "pdb", "dbg!"]

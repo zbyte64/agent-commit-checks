@@ -1,0 +1,108 @@
+{
+  "check_id": "src-changes-have-tests",
+  "check_sha256": "8ed3a0e0c3696639a1f0e89ca6db36226f5da94ec58be9d3731f43a75b058efc",
+  "graded_at": "2026-10-30T18:04:41Z",
+  "head": "4fcbf9e1f574359e9d8042e9758b1e2d8ea3407d",
+  "backend": "claude",
+  "model": "haiku",
+  "bars": {
+    "min_sample": 10,
+    "max_block_rate": 0.1,
+    "max_unstable": 1,
+    "sample_size": 20
+  },
+  "metrics": {
+    "sample_size": 8,
+    "pool_size": 8,
+    "block_rate": 0.0,
+    "blocked": 0,
+    "error_rate": 0.0,
+    "errors": 0,
+    "unstable": 0,
+    "catch_rate": null,
+    "calls": 1
+  },
+  "result": "insufficient",
+  "sample": [
+    {
+      "sha": "4fcbf9e1f574359e9d8042e9758b1e2d8ea3407d",
+      "reason": "all",
+      "score": 1,
+      "answer": "not_needed",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The change replaces `resolve()` with `absolute()` in a config file path initialization, which is a pure refactor that maintains the same behavior with a different implementation strategy - no new tests needed.",
+      "findings": []
+    },
+    {
+      "sha": "bdca2238767cf9c01b697fac2e6cac0cb6672b3d",
+      "reason": "all",
+      "score": 10,
+      "answer": "covered",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The commit modifies the Claude backend to force thinking off via environment variables and adds a test that verifies this behavior works correctly even when the agent's environment has MAX_THINKING_TOKENS set.",
+      "findings": []
+    },
+    {
+      "sha": "6727abb92862cf88fdbfccf29f5ac66ba7304c31",
+      "reason": "all",
+      "score": 1,
+      "answer": "covered",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The commit adds a new SETTINGS constant to control extended thinking and disables hooks, with corresponding test updates that verify the settings are correctly applied through JSON parsing.",
+      "findings": []
+    },
+    {
+      "sha": "87bfece559a5169d98d1d7fd2e9c82c871a2af49",
+      "reason": "all",
+      "score": 145,
+      "answer": "covered",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The commit adds a new MCP server module with an extensive test file (test_mcp.py) that covers the tool implementations and their interaction with the project structure.",
+      "findings": []
+    },
+    {
+      "sha": "fddb97d6dd05b7ac78281d9601be2f8a2c0ba240",
+      "reason": "all",
+      "score": 208,
+      "answer": "covered",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The commit adds a new pushrange.py module that resolves commits for git pushes, with a comprehensive test file (test_pushrange.py) covering various push scenarios and edge cases.",
+      "findings": []
+    },
+    {
+      "sha": "cc147a2f504048740bd95d1fe3f3c28e5ff5da12",
+      "reason": "all",
+      "score": 182,
+      "answer": "covered",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "The commit adds new git helper modules (git.py, gitcmd.py) and a comprehensive test file (test_gitcmd.py) that covers command parsing logic with multiple test cases.",
+      "findings": []
+    },
+    {
+      "sha": "7c93502d131483168e496675f90991b023ff5cda",
+      "reason": "all",
+      "score": 378,
+      "answer": "covered",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "This commit adds comprehensive new modules (checks.py, config.py, globs.py) and test files (test_checks.py, conftest.py) with matching test coverage for the check loading, validation, and configuration behavior.",
+      "findings": []
+    },
+    {
+      "sha": "d6387b78aa09539c2dd93ac78e65bb175f770f68",
+      "reason": "all",
+      "score": 10,
+      "answer": "not_needed",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "This commit adds project scaffolding (README, .gitignore, pyproject.toml, documentation) and the __init__.py file - configuration and documentation changes that do not require tests.",
+      "findings": []
+    }
+  ]
+}
