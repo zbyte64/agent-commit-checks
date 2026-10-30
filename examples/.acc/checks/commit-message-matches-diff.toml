@@ -1,5 +1,5 @@
 id = "commit-message-matches-diff"
-title = "Each commit message describes its diff"
+title = "Commit messages describe the diff"
 enabled = true
 status = "advisory"
 author = "user"
@@ -8,12 +8,13 @@ inputs = ["diff", "message"]
 
 [question]
 type = "choice"
-instructions = """Would someone who reads only this commit message be misled about what the commit does?
-A commit message is a summary. It is accurate when it names the main change, even if it leaves out work that supports that change: tests, fixtures, docs, config or template updates, helper functions, refactors, renames, and small fixes needed to make the main change work. Do not list such omissions.
-Answer `incomplete` only when the diff also changes how the program behaves in a separate way (a feature, behavior change or fix that is not part of the described change) and the message does not mention it at all. Tests, docs and comments are never a separate change, even when they cover a different feature.
-Answer `wrong` when the message describes changes the diff does not make, or does not describe the main change.
-If the diff is truncated, do not assume the hidden part contradicts the message."""
-labels = { accurate = "Names the main change; anything left out supports it", incomplete = "Leaves out a separate change the diff also makes", wrong = "Describes something the diff does not do" }
+instructions = """Would someone who reads only these commit messages be misled about what the commits do?
+The diff is the combined change of all the commits. Each message is a summary of its commit. The messages are accurate when together they name the main changes, even if they leave out work that supports them: tests, fixtures, docs, config or template updates, helper functions, refactors, renames, and small fixes needed to make the main change work. Do not list such omissions.
+A later commit may revise or undo an earlier one, so an earlier message can describe work the combined diff no longer shows. That is not misleading.
+Answer `incomplete` only when the diff also changes how the program behaves in a separate way (a feature, behavior change or fix that is not part of the described changes) and no message mentions it at all. Tests, docs and comments are never a separate change, even when they cover a different feature.
+Answer `wrong` when a message describes changes that neither the diff nor a later commit accounts for, or when no message describes the main change.
+If the diff is truncated, do not assume the hidden part contradicts the messages."""
+labels = { accurate = "Name the main changes; anything left out supports them", incomplete = "Leave out a separate change the diff also makes", wrong = "Describe something the commits do not do" }
 
 [verdict]
 accurate = "pass"
