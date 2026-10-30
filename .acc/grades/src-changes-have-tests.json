@@ -1,8 +1,8 @@
 {
   "check_id": "src-changes-have-tests",
   "check_sha256": "8ed3a0e0c3696639a1f0e89ca6db36226f5da94ec58be9d3731f43a75b058efc",
-  "graded_at": "2026-10-30T18:04:41Z",
-  "head": "4fcbf9e1f574359e9d8042e9758b1e2d8ea3407d",
+  "graded_at": "2026-10-30T18:11:01Z",
+  "head": "85f325b6d00299638c2cb56a81aff4e73a5ff18d",
   "backend": "claude",
   "model": "haiku",
   "bars": {
@@ -12,86 +12,136 @@
     "sample_size": 20
   },
   "metrics": {
-    "sample_size": 8,
-    "pool_size": 8,
+    "sample_size": 13,
+    "pool_size": 13,
     "block_rate": 0.0,
     "blocked": 0,
     "error_rate": 0.0,
     "errors": 0,
     "unstable": 0,
     "catch_rate": null,
-    "calls": 1
+    "calls": 2
   },
-  "result": "insufficient",
+  "result": "pass",
   "sample": [
     {
-      "sha": "4fcbf9e1f574359e9d8042e9758b1e2d8ea3407d",
+      "sha": "85f325b6d00299638c2cb56a81aff4e73a5ff18d",
+      "reason": "all",
+      "score": 6,
+      "answer": "covered",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "Source files src/acc/backends/claude.py and src/acc/runner.py modified to support retryable errors and single-entry batch retries have corresponding test coverage in tests/test_claude_backend.py and tests/test_runner.py.",
+      "findings": []
+    },
+    {
+      "sha": "b1f1f8934c9bc70474b0654635b29a649cfa8899",
       "reason": "all",
       "score": 1,
       "answer": "not_needed",
       "verdict": "pass",
       "rerun_verdict": null,
-      "summary": "The change replaces `resolve()` with `absolute()` in a config file path initialization, which is a pure refactor that maintains the same behavior with a different implementation strategy - no new tests needed.",
+      "summary": "Commit only changes how a path is resolved (from resolve() to absolute()) with a comment explaining the behavior change; no new behavior needs testing as this is a refactor of path resolution logic.",
       "findings": []
     },
     {
-      "sha": "bdca2238767cf9c01b697fac2e6cac0cb6672b3d",
+      "sha": "54e828ee518bf4be5df6be22bb1359b13aab5352",
       "reason": "all",
       "score": 10,
       "answer": "covered",
       "verdict": "pass",
       "rerun_verdict": null,
-      "summary": "The commit modifies the Claude backend to force thinking off via environment variables and adds a test that verifies this behavior works correctly even when the agent's environment has MAX_THINKING_TOKENS set.",
+      "summary": "Source file src/acc/backends/claude.py modified to increase MAX_TURNS from 2 to 4 and add ENV_OVERRIDES for MAX_THINKING_TOKENS has corresponding test updates in tests/test_claude_backend.py verifying both the argv flags and environment variable handling.",
       "findings": []
     },
     {
-      "sha": "6727abb92862cf88fdbfccf29f5ac66ba7304c31",
+      "sha": "2bc13495e58e99ad4cddcf6bfe285d928e0d6720",
       "reason": "all",
       "score": 1,
       "answer": "covered",
       "verdict": "pass",
       "rerun_verdict": null,
-      "summary": "The commit adds a new SETTINGS constant to control extended thinking and disables hooks, with corresponding test updates that verify the settings are correctly applied through JSON parsing.",
+      "summary": "Source file src/acc/backends/claude.py modified to add SETTINGS constant and disable extended thinking has corresponding test updates in tests/test_claude_backend.py verifying the settings are correctly applied.",
       "findings": []
     },
     {
-      "sha": "87bfece559a5169d98d1d7fd2e9c82c871a2af49",
+      "sha": "272fbc44cb58e6eaf108f4e13bd12e6247f607b7",
       "reason": "all",
       "score": 145,
       "answer": "covered",
       "verdict": "pass",
       "rerun_verdict": null,
-      "summary": "The commit adds a new MCP server module with an extensive test file (test_mcp.py) that covers the tool implementations and their interaction with the project structure.",
+      "summary": "New source file src/acc/mcp_server.py with 186 lines exposing checks as MCP tools has comprehensive test coverage in tests/test_mcp.py with tests for list, run, add, update, and promote operations.",
       "findings": []
     },
     {
-      "sha": "fddb97d6dd05b7ac78281d9601be2f8a2c0ba240",
+      "sha": "896307994e5b33fafb04ac5daa10972dac990d46",
+      "reason": "all",
+      "score": 300,
+      "answer": "covered",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "New source files src/acc/cli.py, src/acc/gate.py, and src/acc/log.py with CLI commands and gate logic have corresponding test coverage in tests/test_cli.py and tests/test_gate.py.",
+      "findings": []
+    },
+    {
+      "sha": "41fa243133aa373aed085f0aab6e2715e107eb24",
+      "reason": "all",
+      "score": 176,
+      "answer": "covered",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "New source files src/acc/grading.py (226 lines) and src/acc/ops.py (125 lines) with check grading and operations have corresponding tests in tests/test_grading.py covering grading workflows.",
+      "findings": []
+    },
+    {
+      "sha": "8999b9023a6e6e8e62f2c535d3b16bfbf3592974",
+      "reason": "all",
+      "score": 384,
+      "answer": "covered",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "Commit adds Python backend implementations and runner infrastructure with corresponding test files for claude backend and runner functionality.",
+      "findings": []
+    },
+    {
+      "sha": "024934c240a4eb080057414ddb52a25a6744bb04",
       "reason": "all",
       "score": 208,
       "answer": "covered",
       "verdict": "pass",
       "rerun_verdict": null,
-      "summary": "The commit adds a new pushrange.py module that resolves commits for git pushes, with a comprehensive test file (test_pushrange.py) covering various push scenarios and edge cases.",
+      "summary": "New source file src/acc/pushrange.py with 203 lines of functionality has comprehensive test coverage in tests/test_pushrange.py with 159 lines of tests covering various push scenarios.",
       "findings": []
     },
     {
-      "sha": "cc147a2f504048740bd95d1fe3f3c28e5ff5da12",
+      "sha": "dbbae10840d1de7e203c324309f3f38557948557",
       "reason": "all",
       "score": 182,
       "answer": "covered",
       "verdict": "pass",
       "rerun_verdict": null,
-      "summary": "The commit adds new git helper modules (git.py, gitcmd.py) and a comprehensive test file (test_gitcmd.py) that covers command parsing logic with multiple test cases.",
+      "summary": "Commit adds git helper functions and git push command parser with corresponding test file (test_gitcmd.py) covering the parser behavior.",
       "findings": []
     },
     {
-      "sha": "7c93502d131483168e496675f90991b023ff5cda",
+      "sha": "1677d486fc8872e1254f449e38160e247687adcf",
+      "reason": "all",
+      "score": 43,
+      "answer": "covered",
+      "verdict": "pass",
+      "rerun_verdict": null,
+      "summary": "New source file src/acc/secrets.py with 90 lines implementing secret scanning has corresponding tests in tests/test_secrets_globs.py covering scan_diff, redaction, and pattern matching behavior.",
+      "findings": []
+    },
+    {
+      "sha": "dacd7cd00c7a0b67928eeeb553f8f34dc9c0c732",
       "reason": "all",
       "score": 378,
       "answer": "covered",
       "verdict": "pass",
       "rerun_verdict": null,
-      "summary": "This commit adds comprehensive new modules (checks.py, config.py, globs.py) and test files (test_checks.py, conftest.py) with matching test coverage for the check loading, validation, and configuration behavior.",
+      "summary": "Commit adds check file format, configuration loading, and validation logic with corresponding test files for checks and configuration functionality.",
       "findings": []
     },
     {
@@ -101,7 +151,7 @@
       "answer": "not_needed",
       "verdict": "pass",
       "rerun_verdict": null,
-      "summary": "This commit adds project scaffolding (README, .gitignore, pyproject.toml, documentation) and the __init__.py file - configuration and documentation changes that do not require tests.",
+      "summary": "Commit adds project scaffolding (gitignore, README, pyproject.toml, documentation) and base module initialization with no functional code requiring tests.",
       "findings": []
     }
   ]

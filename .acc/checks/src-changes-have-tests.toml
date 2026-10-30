@@ -1,7 +1,7 @@
 id = "src-changes-have-tests"
 title = "Source changes come with tests"
 enabled = true
-status = "advisory"
+status = "active"
 author = "user"
 scope = "per_commit"
 applies_to = ["src/**/*.py"]
