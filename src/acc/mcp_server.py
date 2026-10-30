@@ -86,7 +86,7 @@ def build_server(agent: str, cwd: Path | None = None) -> MCPServer:
     def guarded(fn):
         try:
             return fn()
-        except (ops.OpError, CheckError, BackendError, GitError, ConfigError) as e:
+        except (ops.OpError, CheckError, BackendError, GitError, ConfigError, grading.GradeError) as e:
             raise ToolError(str(e)) from e
 
     @server.tool()
@@ -132,17 +132,21 @@ def build_server(agent: str, cwd: Path | None = None) -> MCPServer:
         return _result(_run_text(res), _run_payload(res))
 
     @server.tool()
-    def grade_check(id: str, sample_size: int | None = None) -> CallToolResult:
+    def grade_check(id: str, sample_size: int | None = None, commits: list[str] | None = None,
+                    range: str | None = None) -> CallToolResult:
         """Grade a check against ~20 relevant commits from history and write .acc/grades/<id>.json.
 
-        A passing grade is required before promote_check can move the check to active.
+        Optionally grade exactly `commits`, or draw the sample from `range` (A..B) instead of
+        the default branch's history; not both. Grades on chosen commits or ranges are useful
+        for testing, but promote_check only accepts an automatic grade for `active`.
         Report the block rate and any history commits it would block to the user.
         """
         root, cfg = project()
 
         def go():
             check = ops.get_check(cfg, id)
-            return grading.grade(cfg, root, check, get_backend(cfg, agent), sample_size)
+            return grading.grade(cfg, root, check, get_backend(cfg, agent), sample_size,
+                                 commits=commits, rev_range=range)
 
         g = guarded(go)
         m = g.metrics
@@ -153,6 +157,8 @@ def build_server(agent: str, cwd: Path | None = None) -> MCPServer:
         for s in g.record["sample"]:
             if s["verdict"] == "block":
                 lines.append(f"would block {s['sha'][:7]} ({s['reason']}): {s['summary']}")
+        for x in g.record["excluded"]:
+            lines.append(f"skipped {x['sha'][:7]}: {x['reason']}")
         lines.append(f"wrote {g.path}")
         return _result("\n".join(lines), {**g.record, "path": str(g.path)})
 
@@ -171,12 +177,13 @@ def build_server(agent: str, cwd: Path | None = None) -> MCPServer:
 
     @server.tool()
     def promote_check(id: str, to: Literal["advisory", "active"]) -> CallToolResult:
-        """Change a check's status. `active` needs a passing grade for the check's current contents.
+        """Change a check's status. `active` needs a passing automatic grade (grade_check without
+        commits or range) for the check's current contents.
 
         Report the returned path and changed line to the user.
         """
         _, cfg = project()
-        r = guarded(lambda: ops.promote(cfg, id, to))
+        r = guarded(lambda: ops.promote(cfg, id, to, allow_hand_picked=False))
         return _result(f"{r['path']}: {r['old_line'] or '(none)'} -> {r['new_line']}", r)
 
     return server

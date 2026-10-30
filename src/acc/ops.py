@@ -107,7 +107,9 @@ def update_check(cfg: Config, check_id: str, spec: dict | str) -> Path:
     return current.path
 
 
-def promote(cfg: Config, check_id: str, to: str, force: bool = False) -> dict:
+def promote(cfg: Config, check_id: str, to: str, force: bool = False, allow_hand_picked: bool = True) -> dict:
+    """`allow_hand_picked=False` (the agent's path) refuses grades on chosen commits or ranges,
+    so an agent cannot pick easy commits to pass its own check."""
     if to not in ("advisory", "active"):
         raise OpError("promotion target must be 'advisory' or 'active'")
     check = get_check(cfg, check_id)
@@ -121,5 +123,9 @@ def promote(cfg: Config, check_id: str, to: str, force: bool = False) -> dict:
                 "insufficient": "its grade had too few history commits",
             }.get(status, status)
             raise OpError(f"cannot promote {check_id!r} to active: {hint}")
+        record = grading.load_grade(cfg, check_id) or {}
+        if not allow_hand_picked and grading.is_hand_picked(record):
+            raise OpError(f"cannot promote {check_id!r} to active: its grade used chosen commits or a range; "
+                          "run grade_check without commits or range, or ask the user to run `acc promote`")
     old, new = checks_mod.set_status(check.path, to)
     return {"path": str(check.path), "old_line": old, "new_line": new, "status": to}

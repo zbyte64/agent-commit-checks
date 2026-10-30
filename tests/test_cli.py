@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from acc.cli import main
 from tests.conftest import check_toml
 
@@ -57,3 +59,18 @@ def test_doctor_offline(repo, capsys, monkeypatch):
     assert main(["doctor", "--offline"]) == 0
     out = capsys.readouterr().out
     assert "backend 'fake'" in out
+
+
+def test_grade_commits_and_range_flags(repo, capsys, monkeypatch):
+    monkeypatch.chdir(repo.path)
+    shas = [repo.commit({f"f{i}.py": "x\n"}) for i in range(3)]
+    repo.enable(checks={"a": check_toml("a", applies_to='["*.py"]')},
+                answers={"*": {"answer": 0.1, "findings": [], "summary": "fine"}})
+    assert main(["grade", "a", "--commits", shas[0], shas[1]]) == 1  # 2 < min_sample: insufficient
+    out = capsys.readouterr().out
+    assert "on chosen commits: INSUFFICIENT" in out
+    main(["grade", "a", "--range", f"{shas[0]}..{shas[2]}"])
+    assert "on range" in capsys.readouterr().out
+    assert main(["grade", "a", "--commits", "nope"]) == 3
+    with pytest.raises(SystemExit):
+        main(["grade", "a", "--commits", shas[0], "--range", "HEAD~1..HEAD"])

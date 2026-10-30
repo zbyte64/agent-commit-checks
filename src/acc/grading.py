@@ -47,10 +47,17 @@ def default_branch(cwd: Path) -> str:
     return "HEAD"
 
 
-def _history(cwd: Path, check: Check, branch: str, max_history: int) -> list[tuple[str, str, str]]:
-    """(sha, message, diff) per unit: non-merge commits, or first-parent steps for range checks."""
+class GradeError(ValueError):
+    pass
+
+
+def _history(cwd: Path, check: Check, revs: str, max_history: int) -> list[tuple[str, str, str]]:
+    """(sha, message, diff) per unit: non-merge commits, or first-parent steps for range checks.
+
+    `revs` is a branch (walk its history) or an `A..B` range.
+    """
     walk = ["--no-merges"] if check.scope == "per_commit" else ["--first-parent", "--diff-merges=first-parent"]
-    out = g.git(cwd, "log", branch, "-n", str(max_history), *walk, "-p", "--no-color", "--no-ext-diff",
+    out = g.git(cwd, "log", revs, "-n", str(max_history), *walk, "-p", "--no-color", "--no-ext-diff",
                 "--find-renames", f"--format={RECORD_SEP}%H{FIELD_SEP}%B{FIELD_SEP}")
     units = []
     for rec in out.split(RECORD_SEP)[1:]:
@@ -72,30 +79,75 @@ def _check_added_in(cwd: Path, check: Check) -> str | None:
     return out.split()[-1] if out and out.split() else None
 
 
-def select_sample(cfg: Config, cwd: Path, check: Check) -> tuple[list[Unit], int]:
-    """Pick ~sample_size units relevant to the check. Returns (units, eligible pool size)."""
+def _explicit_commits(cwd: Path, revs: list[str]) -> list[tuple[str, str, str]]:
+    units = []
+    for rev in revs:
+        sha = g.rev_parse(cwd, rev)
+        if not sha:
+            raise GradeError(f"unknown commit {rev!r}")
+        raw = diffs.raw_diff(cwd, g.first_parent(cwd, sha), sha)
+        units.append((sha, diffs.commit_message(cwd, sha), raw))
+    return units
+
+
+def select_sample(cfg: Config, cwd: Path, check: Check, commits: list[str] | None = None,
+                  rev_range: str | None = None) -> tuple[list[Unit], int, list[dict]]:
+    """Pick ~sample_size units relevant to the check.
+
+    By default units come from the default branch's history. `commits` grades exactly
+    those commits; `rev_range` (A..B) draws units from that range only.
+    Returns (units, eligible pool size, excluded [{sha, reason}] for explicit selections).
+    """
+    if commits and rev_range:
+        raise GradeError("pass either commits or a range, not both")
     gr = cfg.grading
     excludes = cfg.run["exclude_globs"]
     added_in = _check_added_in(cwd, check)
     expect_fail = {e.lower() for e in check.grading.get("expect_fail", [])}
     terms = check.grading.get("terms", [])
 
+    if commits:
+        candidates = _explicit_commits(cwd, commits)
+    elif rev_range:
+        if ".." not in rev_range:
+            raise GradeError(f"range must look like A..B, got {rev_range!r}")
+        a, b = rev_range.split("..", 1)
+        if not g.rev_parse(cwd, a or "HEAD") or not g.rev_parse(cwd, b or "HEAD"):
+            raise GradeError(f"unknown revision range {rev_range!r}")
+        candidates = _history(cwd, check, rev_range, gr["max_history"])
+    else:
+        candidates = _history(cwd, check, default_branch(cwd), gr["max_history"])
+
     pool: list[Unit] = []
-    for sha, message, raw in _history(cwd, check, default_branch(cwd), gr["max_history"]):
-        if sha == added_in or any(sha.startswith(e) for e in expect_fail):
-            continue
+    excluded: list[dict] = []
+    for sha, message, raw in candidates:
+        if any(sha.startswith(e) for e in expect_fail):
+            continue  # graded separately as a known failure
         ctx = diffs.build_context(cwd, g.short(sha), raw, message, excludes, sha)
-        if not ctx.diff.strip() or any(h.severity == "block" for h in ctx.secret_hits):
-            continue
         matching = [f for f in ctx.files if globs.match_any(f, check.applies_to)]
-        if not matching:
+        if sha == added_in:
+            reason = "commit that added the check file"
+        elif not ctx.diff.strip():
+            reason = "empty diff after excludes"
+        elif any(h.severity == "block" for h in ctx.secret_hits):
+            reason = "secret scan hit (never sent to a model)"
+        elif not matching:
+            reason = "no changed path matches applies_to"
+        else:
+            reason = ""
+        if reason:
+            excluded.append({"sha": sha, "reason": reason})
             continue
         text = _added_lines(ctx.diff) + "\n" + message
         score = len(matching) + 3 * sum(text.count(t) for t in terms)
         pool.append(Unit(sha, ctx, score))
 
     size = gr["sample_size"]
-    if len(pool) <= size:
+    if commits:
+        chosen = pool
+        for u in chosen:
+            u.reason = "selected"
+    elif len(pool) <= size:
         chosen = pool
         for u in chosen:
             u.reason = "all"
@@ -119,14 +171,15 @@ def select_sample(cfg: Config, cwd: Path, check: Check) -> tuple[list[Unit], int
             continue
         ctx = diffs.commit_context(cwd, sha, excludes)
         chosen.append(Unit(sha, ctx, reason="expect_fail"))
-    return chosen, len(pool)
+    return chosen, len(pool), excluded if (commits or rev_range) else []
 
 
-def grade(cfg: Config, cwd: Path, check: Check, backend: Backend, sample_size: int | None = None) -> Grade:
+def grade(cfg: Config, cwd: Path, check: Check, backend: Backend, sample_size: int | None = None,
+          commits: list[str] | None = None, rev_range: str | None = None) -> Grade:
     if sample_size:
         cfg.grading["sample_size"] = sample_size
     gr = cfg.grading
-    units, pool_size = select_sample(cfg, cwd, check)
+    units, pool_size, excluded = select_sample(cfg, cwd, check, commits, rev_range)
     # Grade the check as if active so would-be blocks are visible.
     graded = Check(**{**check.__dict__, "status": "active"})
 
@@ -178,6 +231,8 @@ def grade(cfg: Config, cwd: Path, check: Check, backend: Backend, sample_size: i
         "head": g.rev_parse(cwd, "HEAD"),
         "backend": backend.name,
         "model": backend.model,
+        "selection": selection_record(commits, rev_range),
+        "excluded": excluded,
         "bars": {k: gr[k] for k in ("min_sample", "max_block_rate", "max_unstable", "sample_size")},
         "metrics": metrics,
         "result": result,
@@ -200,6 +255,19 @@ def grade(cfg: Config, cwd: Path, check: Check, backend: Backend, sample_size: i
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(record, indent=2) + "\n")
     return Grade(check.id, result, metrics, record, path)
+
+
+def selection_record(commits: list[str] | None, rev_range: str | None) -> dict:
+    if commits:
+        return {"mode": "commits", "commits": list(commits)}
+    if rev_range:
+        return {"mode": "range", "range": rev_range}
+    return {"mode": "auto"}
+
+
+def is_hand_picked(record: dict) -> bool:
+    """Grades on chosen commits or ranges; older records without the field were automatic."""
+    return record.get("selection", {}).get("mode", "auto") != "auto"
 
 
 def load_grade(cfg: Config, check_id: str) -> dict | None:

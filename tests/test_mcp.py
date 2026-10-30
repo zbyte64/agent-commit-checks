@@ -105,3 +105,13 @@ def test_grade_check_tool(server, repo):
     r = call(server, "grade_check", id="user-check")
     assert r.structured_content["result"] == "fail"  # every unit blocked
     assert "would block" in r.content[0].text
+
+
+def test_grade_check_with_commits_cannot_promote_to_active(server, repo):
+    shas = [repo.commit({f"f{i}.py": "x\n"}) for i in range(12)]
+    (repo.path / "answers.json").write_text('{"*": {"answer": 0.1, "findings": [], "summary": "ok"}}')
+    r = call(server, "grade_check", id="user-check", commits=shas)
+    assert r.structured_content["result"] == "pass"
+    assert r.structured_content["selection"]["mode"] == "commits"
+    with pytest.raises(ToolError, match="chosen commits or a range"):
+        call(server, "promote_check", id="user-check", to="active")
