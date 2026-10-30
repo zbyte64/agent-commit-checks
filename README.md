@@ -79,8 +79,10 @@ holds hashes and sizes only, never diff text or secrets.
 
 ## Notes and deviations from the handoff
 
-- The `claude -p` call uses `--max-turns 2`. Structured output takes a StructuredOutput tool
-  call plus a final turn, and `--max-turns 1` ends in `error_max_turns`.
+- The `claude -p` call uses `--max-turns 4`. Structured output takes a StructuredOutput tool
+  call plus a final turn, so `--max-turns 1` always ends in `error_max_turns`. A tool call
+  that fails schema validation costs another turn, and `--max-turns 2` failed on about 1 in
+  4 grading calls.
 - `--tools ""` disables all tools (an open question in the handoff). The call also uses
   `--strict-mcp-config`, `--setting-sources ""` and `--system-prompt`. Together these flags
   cut a call from about 86K input tokens and $0.11 to about 2.4K tokens and $0.006.

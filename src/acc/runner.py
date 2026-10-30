@@ -111,7 +111,7 @@ def execute(entries: list[prompt.Entry], backend: Backend, cfg: Config) -> tuple
         for e in batch:
             tr = truncated.get(e.context.label, False)
             if answers is None:
-                if retryable and len(batch) > 1:
+                if retryable:
                     retry.append(e)
                 else:
                     done.append(settle(e, None, err, tr))

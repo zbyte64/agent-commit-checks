@@ -49,7 +49,7 @@ def test_argv_flags():
     settings = json.loads(argv[argv.index("--settings") + 1])
     assert settings["disableAllHooks"] is True and settings["alwaysThinkingEnabled"] is False
     assert argv[argv.index("--tools") + 1] == ""
-    assert argv[argv.index("--max-turns") + 1] == "2"
+    assert argv[argv.index("--max-turns") + 1] == "4"
     assert argv[-1] == "prompt"
 
 

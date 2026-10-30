@@ -95,6 +95,13 @@ def test_backend_error_not_retried(repo):
     assert all(e.error and e.verdict == "block" for e in res.entries)
 
 
+def test_retryable_error_retried_even_for_single_entry_batch(repo):
+    repo.commit()
+    res = run(repo, {"*": "retryable"}, ("a", check_toml("a")))
+    assert res.calls == 2
+    assert "fake backend error" in res.entries[0].error
+
+
 def test_backend_error_on_advisory_is_warn(repo):
     repo.commit()
     res = run(repo, {"*": "error"}, ("a", check_toml("a", status="advisory")))

@@ -1,7 +1,8 @@
 """Fake backend: canned answers from a JSON fixture, for tests without network or login.
 
 The fixture maps a check key (`id@sha7`), a check id, or `*` to either an answer
-object, the string "omit" (leave the entry out), or "error" (fail the whole call).
+object, the string "omit" (leave the entry out), "error" (fail the whole call), or
+"retryable" (fail the call with a retryable error, e.g. invalid output).
 `ACC_FAKE_ANSWERS` overrides `[backends.fake] answers`.
 """
 
@@ -30,8 +31,8 @@ class FakeBackend:
         for key in schema["properties"]["checks"]["required"]:
             check_id = key.split("@", 1)[0]
             ans = self.answers.get(key, self.answers.get(check_id, self.answers.get("*")))
-            if ans == "error":
-                raise BackendError(f"fake backend error for {key}")
+            if ans in ("error", "retryable"):
+                raise BackendError(f"fake backend error for {key}", retryable=ans == "retryable")
             if ans is None or ans == "omit":
                 continue
             out[key] = ans

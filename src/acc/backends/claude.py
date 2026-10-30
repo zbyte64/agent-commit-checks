@@ -12,9 +12,10 @@ import subprocess
 from ..prompt import schema_json
 from . import BackendError
 
-# Structured output needs a second turn: the model calls the StructuredOutput tool,
-# then the run ends. With --max-turns 1 the result is error_max_turns.
-MAX_TURNS = "2"
+# Structured output needs at least two turns: the model calls the StructuredOutput
+# tool, then the run ends. A call that fails schema validation costs another turn, so
+# leave headroom; StructuredOutput is the only tool, so the run stays bounded.
+MAX_TURNS = "4"
 # No hooks in the spawned run, so this gate cannot recurse.
 # Thinking is always off: the backend imitates a decision model, which returns a
 # typed answer directly. The setting alone is not enough, because hooks inherit the
