@@ -117,7 +117,7 @@ another option switches the project to it.
 ```toml
 [backends.local]
 url = "http://127.0.0.1:8763"
-model = "Qwen/Qwen3-1.7B-GGUF:Q8_0"   # Hugging Face GGUF repo:quant
+model = "Qwen/Qwen3-0.6B-GGUF:Q8_0"   # Hugging Face GGUF repo:quant
 device = "cpu"                         # "gpu" offloads every layer; "cpu" turns GPUs off
 server = "~/.local/bin/llama-server"   # "" if you run the server yourself
 # server_args = ["--ctx-size", "16384", "--parallel", "2"]
@@ -147,6 +147,15 @@ The tiny model does not write an answer. For each check it reads the prompt once
 its next-token probabilities over the possible answers: `yes` or `no` for a `bool` check, whose
 answer is P(yes), and the option numbers for a `choice` or `score` check. Confidence is the
 probability of the verdict. It reports no findings, and its summary lists the probabilities.
+
+**How good are they?** Not good enough to gate pushes. On 52 cases from this repo's history
+([bench/README.md](bench/README.md)), Haiku passed 25 of 26 real commits and caught 25 of 26
+altered ones (a swapped message, tests removed, or a debug print added). The best local model,
+Qwen3-4B on the GPU (the `gpu` preset, 12 s a call), passed 24 and caught 9: every commit with its
+tests removed, but no swapped message and only 1 of 8 debug prints. The `cpu` (Qwen3-0.6B, 12 s)
+and `tiny` (SmolLM2-360M, 4 s) presets passed 20 and 22 and caught 5 and 2. Their measured
+confidence is as high on wrong verdicts as on right ones. Use a local model where the diff must
+not leave the machine, and keep its checks `advisory`.
 
 ## Check files
 

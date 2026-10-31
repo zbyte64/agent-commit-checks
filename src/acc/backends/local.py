@@ -34,8 +34,8 @@ from .. import log
 from ..prompt import json_object, with_schema
 from . import BackendError
 
-# Picked by benchmarking on a laptop (Ryzen 9 7940HS, Radeon 780M); see the README's "Local model" section.
-RECOMMENDED_MODELS = {"cpu": "Qwen/Qwen3-1.7B-GGUF:Q8_0", "gpu": "Qwen/Qwen3-1.7B-GGUF:Q8_0"}
+# Picked by benchmarking on a laptop (Ryzen 9 7940HS, Radeon 780M); see bench/README.md.
+RECOMMENDED_MODELS = {"cpu": "Qwen/Qwen3-0.6B-GGUF:Q8_0", "gpu": "Qwen/Qwen3-4B-GGUF:Q8_0"}
 RECOMMENDED_MODEL = RECOMMENDED_MODELS["cpu"]
 # `cpu` turns GPU devices off: with -ngl 0 alone, a GPU build still offloads large prompt matmuls.
 DEVICE_ARGS = {"cpu": ["--device", "none"], "gpu": ["--n-gpu-layers", "999"]}

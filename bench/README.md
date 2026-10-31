@@ -63,7 +63,11 @@ through `claude -p` with acc's usual flags.
   and Haiku in 8 s.
 
 So the local options are for privacy or offline use, as advisory checks, and not as a gate that
-blocks.
+blocks. The presets use Qwen3-4B for `gpu`, Qwen3-0.6B for `cpu` and SmolLM2-360M for `tiny`.
+On the CPU, Qwen3-1.7B was no better than Qwen3-0.6B (it said yes to debug code on 14 of 16
+cases) and took twice as long, so the `cpu` preset takes the smaller model. Qwen3-4B was not run
+on the CPU: at about four times Qwen3-1.7B's 23 s a call, it would not fit the default 90 s
+timeout. For `tiny`, SmolLM2-360M blocks the fewest real commits.
 
 ## Re-running
 
