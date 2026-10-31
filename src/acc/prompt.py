@@ -107,3 +107,26 @@ def build(entries: list[Entry], max_diff_chars: int) -> tuple[str, str, dict, di
 
 def schema_json(schema: dict) -> str:
     return json.dumps(schema, separators=(",", ":"))
+
+
+def with_schema(prompt: str, schema: dict) -> str:
+    return (
+        f"{prompt}\n\nReply with one JSON object and nothing else (no code fences, no prose). "
+        f"It must match this JSON Schema:\n{schema_json(schema)}"
+    )
+
+
+def json_object(text: str) -> dict | None:
+    """Parse the answer text, tolerating code fences or prose around one JSON object."""
+    text = text.strip()
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        start, end = text.find("{"), text.rfind("}")
+        if start < 0 or end <= start:
+            return None
+        try:
+            data = json.loads(text[start: end + 1])
+        except json.JSONDecodeError:
+            return None
+    return data if isinstance(data, dict) else None

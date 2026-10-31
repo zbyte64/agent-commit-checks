@@ -10,7 +10,7 @@ import json
 import subprocess
 from pathlib import Path
 
-from ..prompt import schema_json
+from ..prompt import json_object, with_schema
 from . import BackendError
 
 # A lean, single-answer call: no tools, no saved session, and no project inputs that
@@ -72,13 +72,6 @@ class OmpBackend:
         return parse_output(proc.stdout, proc.stderr, proc.returncode, self.model)
 
 
-def with_schema(prompt: str, schema: dict) -> str:
-    return (
-        f"{prompt}\n\nReply with one JSON object and nothing else (no code fences, no prose). "
-        f"It must match this JSON Schema:\n{schema_json(schema)}"
-    )
-
-
 def _events(stdout: str) -> list[dict]:
     """`--mode json` prints one JSON event per line."""
     events = []
@@ -103,22 +96,6 @@ def _final_assistant(events: list[dict]) -> dict | None:
         if isinstance(message, dict) and message.get("role") == "assistant":
             return message
     return None
-
-
-def _json_object(text: str) -> dict | None:
-    """Parse the answer text, tolerating code fences or prose around one JSON object."""
-    text = text.strip()
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError:
-        start, end = text.find("{"), text.rfind("}")
-        if start < 0 or end <= start:
-            return None
-        try:
-            data = json.loads(text[start: end + 1])
-        except json.JSONDecodeError:
-            return None
-    return data if isinstance(data, dict) else None
 
 
 def _no_events_error(stderr: str, stdout: str, returncode: int, model: str) -> BackendError:
@@ -150,7 +127,7 @@ def parse_output(stdout: str, stderr: str = "", returncode: int = 0, model: str 
         raise BackendError("omp -p was aborted before answering")
     text = "".join(b.get("text", "") for b in message.get("content", [])
                    if isinstance(b, dict) and b.get("type") == "text")
-    data = _json_object(text)
+    data = json_object(text)
     if data is None:
         why = "was cut off" if stop == "length" else "is not a JSON object"
         raise BackendError(f"omp -p answer {why}", retryable=True)
