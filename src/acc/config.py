@@ -24,6 +24,7 @@ DEFAULTS: dict[str, Any] = {
     },
     "agents": {},
     "run": {
+        "backend": "",
         "max_diff_chars": 12000,
         "timeout_seconds": 90,
         "parallel": 4,
@@ -93,8 +94,9 @@ class Config:
         return self.data["grading"]
 
     def backend_for(self, agent: str) -> str:
-        """Backend name for an agent: `[agents.<name>] backend`, else the agent's own CLI."""
-        return self.data.get("agents", {}).get(agent, {}).get("backend", agent)
+        """Backend name for an agent: `[agents.<name>] backend`, else `run.backend` (which
+        overrides every agent's own CLI, e.g. with a local model), else the agent's own CLI."""
+        return self.data.get("agents", {}).get(agent, {}).get("backend") or self.run["backend"] or agent
 
     def backend_settings(self, name: str) -> dict:
         return self.data.get("backends", {}).get(name, {})

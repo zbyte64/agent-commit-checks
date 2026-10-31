@@ -61,3 +61,13 @@ def test_min_block_confidence_validated(tmp_path):
             assert "min_block_confidence" in str(e)
         else:
             raise AssertionError(bad)
+
+
+def test_run_backend_overrides_every_agent(tmp_path):
+    (tmp_path / ".acc").mkdir()
+    (tmp_path / ".acc/config.toml").write_text('[run]\nbackend = "fake"\n\n[agents.omp]\nbackend = "claude"\n')
+    cfg = load_config(tmp_path)
+    assert cfg.backend_for("claude") == "fake"
+    assert cfg.backend_for("omp") == "claude"  # an explicit per-agent route still wins
+    (tmp_path / ".acc/config.toml").write_text("")
+    assert load_config(tmp_path).backend_for("claude") == "claude"
