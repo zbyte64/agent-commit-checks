@@ -148,7 +148,7 @@ def test_set_keys_edits_only_its_table():
         '[t]\nserver = "s"\nurl = "mine"\n'
 
 
-@pytest.mark.parametrize("preset,backend", [("cpu", "local"), ("gpu", "local")])
+@pytest.mark.parametrize("preset,backend", [("cpu", "local"), ("gpu", "local"), ("tiny", "tiny")])
 def test_enable_local_presets(tmp_path, preset, backend):
     (tmp_path / ".acc").mkdir()
     (tmp_path / ".acc/config.toml").write_text(enable_local('[run]\nparallel = 2\n', preset, "llama-server"))

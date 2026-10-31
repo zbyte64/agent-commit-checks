@@ -35,6 +35,10 @@ def get_backend(cfg: Config, agent: str, override: str | None = None) -> Backend
         from .local import LocalBackend
 
         return LocalBackend(settings)
+    if name == "tiny":
+        from .tiny import TinyBackend
+
+        return TinyBackend(settings)
     if name == "fake":
         from .fake import FakeBackend
 

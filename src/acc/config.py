@@ -20,8 +20,9 @@ DEFAULTS: dict[str, Any] = {
     "backends": {
         "claude": {"command": "claude", "model": "haiku"},
         "omp": {"command": "omp", "model": "@decision"},
-        # Defaults for the local server live in backends/local.py.
+        # Defaults for the local backends live in backends/local.py and backends/tiny.py.
         "local": {},
+        "tiny": {},
         "fake": {"answers": ""},
     },
     "agents": {},

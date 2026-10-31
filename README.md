@@ -93,10 +93,11 @@ Put the **MCP server** in `.omp/mcp.json` (project) or `~/.omp/agent/mcp.json` (
 
 Instead of the agent's own model, every check can run on a small decision model on this machine.
 It needs no login or network after the first download, and the diff never leaves the machine.
-There are two options:
+There are three options:
 
 | `acc init --local …` | Runs | Needs |
 | --- | --- | --- |
+| `tiny` | a small ONNX model in-process, as a classifier | the `tiny` extra (onnxruntime, ~35 MB) |
 | `cpu` (default) | a small chat model in llama.cpp's `llama-server`, on the CPU | `llama-server` (any build) |
 | `gpu` | a larger chat model in `llama-server`, on the GPU | a GPU build: Vulkan (AMD, Intel), CUDA or ROCm |
 
@@ -131,6 +132,22 @@ OpenAI-style `/v1/chat/completions` that supports `json_schema` response formats
 Ollama with `url = "http://127.0.0.1:11434"`, an Ollama tag as `model`, and `server = ""`.
 Confidence is measured only when the server returns `logprobs`.
 
+**tiny.** The `tiny` backend runs an ONNX export of a ChatML model (SmolLM2, Qwen2.5, Qwen3) with
+onnxruntime, in the acc process, with no server. Install acc with the extra:
+`uv tool install 'agent-commit-checks[mcp,tiny] @ /path/to/agent-commit-checks'`. The model files
+are downloaded from Hugging Face into `~/.cache/acc/models` on first use.
+
+```toml
+[backends.tiny]
+model = "HuggingFaceTB/SmolLM2-360M-Instruct"
+file = "onnx/model_int8.onnx"
+```
+
+The tiny model does not write an answer. For each check it reads the prompt once, and acc reads
+its next-token probabilities over the possible answers: `yes` or `no` for a `bool` check, whose
+answer is P(yes), and the option numbers for a `choice` or `score` check. Confidence is the
+probability of the verdict. It reports no findings, and its summary lists the probabilities.
+
 ## Check files
 
 `.acc/checks/<id>.toml`. See [examples/.acc/checks](examples/.acc/checks) for one check of each type.
@@ -149,9 +166,9 @@ the answer. A `block` answered with confidence below `run.min_block_confidence` 
 becomes a `warn` that says "low confidence", in the gate and in grades. An answer without a
 valid confidence is invalid and is retried alone, like a missing answer.
 
-The `local` backend measures confidence instead of asking for it: a small model writes 1.0 almost
-every time. It reads the model's token probabilities at the answer and adds up the probability of
-every answer that gives the same verdict. A model that wrote `0.0` for a `bool`
+The `local` and `tiny` backends measure confidence instead of asking for it: a small model writes
+1.0 almost every time. They read the model's token probabilities at the answer and add up the
+probability of every answer that gives the same verdict. A model that wrote `0.0` for a `bool`
 check but put 27% on `0.9` gets confidence 0.73 for its `pass`.
 
 A check answers once for the whole push. The model sees the combined diff of every pushed

@@ -88,8 +88,12 @@ def _batches(entries: list[prompt.Entry], size: int) -> list[list[prompt.Entry]]
 
 def _ask(backend: Backend, batch: list[prompt.Entry], cfg: Config) -> tuple[dict | None, str, bool, dict]:
     text, stdin, schema, truncated = prompt.build(batch, cfg.run["max_diff_chars"])
+    timeout = float(cfg.run["timeout_seconds"])
     try:
-        out = backend.ask(prompt.SYSTEM, text, stdin, schema, float(cfg.run["timeout_seconds"]))
+        if hasattr(backend, "decide"):  # a classifier: it reads the checks, not the JSON prompt
+            out = backend.decide(batch, stdin, timeout)
+        else:
+            out = backend.ask(prompt.SYSTEM, text, stdin, schema, timeout)
         return out.get("checks", {}), "", False, truncated
     except BackendError as e:
         return None, str(e), e.retryable, truncated

@@ -16,6 +16,9 @@ from . import checks as checks_mod
 from . import grading, omp_setup, ops
 from .backends import BackendError, get_backend
 from .backends.local import DEFAULT_URL, RECOMMENDED_MODELS, LocalBackend, list_devices, server_log
+from .backends.tiny import DEFAULT_FILE as TINY_FILE
+from .backends.tiny import RECOMMENDED_MODEL as TINY_MODEL
+from .backends.tiny import TinyBackend
 from .checks import CheckError
 from .config import ConfigError, home_relative, load_config
 from .gate import format_result, run_claude_hook, run_omp_gate
@@ -238,12 +241,15 @@ def set_keys(text: str, table: str, values: dict[str, str], defaults: dict[str, 
     return text[:head.end()] + body + text[stop:]
 
 
-LOCAL_PRESETS = ("cpu", "gpu")
+LOCAL_PRESETS = ("cpu", "gpu", "tiny")
 
 
 def enable_local(text: str, preset: str, server: str) -> str:
-    """Config text that runs every check on a local model, in llama-server on the `cpu` or `gpu`."""
+    """Config text that runs every check on a local model: `cpu` or `gpu` (llama-server) or `tiny`."""
     q = json.dumps
+    if preset == "tiny":
+        text = set_keys(text, "backends.tiny", {"model": q(TINY_MODEL), "file": q(TINY_FILE)})
+        return set_keys(text, "run", {"backend": q("tiny")})
     text = set_keys(text, "backends.local", {"device": q(preset), "model": q(RECOMMENDED_MODELS[preset])},
                     defaults={"url": q(DEFAULT_URL), "server": q(server)})
     return set_keys(text, "run", {"backend": q("local")})
@@ -252,7 +258,17 @@ def enable_local(text: str, preset: str, server: str) -> str:
 def _init_local(cfg_path: Path, preset: str, llama: str | None) -> None:
     server = home_relative(str(Path(llama).absolute())) if llama else "llama-server"
     cfg_path.write_text(enable_local(cfg_path.read_text(), preset, server))
-    print(f'set run.backend = "local" in {cfg_path.name}: every agent now uses the local {preset} model')
+    backend = "tiny" if preset == "tiny" else "local"
+    print(f'set run.backend = "{backend}" in {cfg_path.name}: every agent now uses the local {preset} model')
+    if preset == "tiny":
+        try:
+            import onnxruntime  # noqa: F401
+            import tokenizers  # noqa: F401
+        except ImportError:
+            print("warning: the tiny backend needs the optional extra: reinstall with "
+                  "`uv tool install 'agent-commit-checks[mcp,tiny] @ /path/to/agent-commit-checks'`.")
+        print("Run `acc doctor` once: it downloads the model into ~/.cache/acc/models.")
+        return
     if not llama:
         print("warning: `llama-server` not found on PATH. Install llama.cpp "
               "(https://github.com/ggml-org/llama.cpp/releases), then set backends.local.server "
@@ -365,6 +381,14 @@ def cmd_doctor(a: argparse.Namespace) -> int:
             devices = list_devices(binary_path)
             report(bool(devices), f"llama-server GPUs: {', '.join(devices)}" if devices else
                    "llama-server sees no GPU: install a Vulkan, CUDA or ROCm build of llama.cpp")
+    elif name == "tiny":
+        try:
+            import onnxruntime
+            report(True, f"onnxruntime {onnxruntime.__version__}")
+        except ImportError:
+            report(False, "onnxruntime is not installed: install agent-commit-checks[tiny]")
+        tiny = TinyBackend(cfg.backend_settings("tiny"))
+        report(True, f"model {tiny.model} ({tiny.file})")
     elif name == "omp":
         path = binary("omp")
         model = cfg.backend_settings("omp")["model"]
@@ -481,8 +505,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="set up omp instead of Claude Code: install the extension in "
                          "~/.omp/agent/extensions and print the omp setup")
     sp.add_argument("--local", nargs="?", const="cpu", choices=LOCAL_PRESETS,
-                    help="run every check on a local model in llama-server instead of the agent's own, "
-                         "on the cpu (default) or gpu")
+                    help="run every check on a local model instead of the agent's own: cpu (default) "
+                         "or gpu run llama-server; tiny runs a small ONNX classifier in-process")
     sp.set_defaults(fn=cmd_init)
 
     sp = sub.add_parser("doctor", help="verify backend, auth, config and check files")
