@@ -20,6 +20,8 @@ DEFAULTS: dict[str, Any] = {
     "backends": {
         "claude": {"command": "claude", "model": "haiku"},
         "omp": {"command": "omp", "model": "@decision"},
+        # Defaults for the local server live in backends/local.py.
+        "local": {},
         "fake": {"answers": ""},
     },
     "agents": {},
@@ -124,8 +126,9 @@ def load_config(root: Path) -> Config:
             raise ConfigError(f"{path}: {e}") from e
     cfg = Config(root=root, data=_merge(DEFAULTS, data))
     for backend in cfg.data["backends"].values():
-        if isinstance(backend.get("command"), str):
-            backend["command"] = expand_path(backend["command"])
+        for key in ("command", "server"):
+            if isinstance(backend.get(key), str):
+                backend[key] = expand_path(backend[key])
     if cfg.run["on_backend_error"] not in ("warn", "block"):
         raise ConfigError("run.on_backend_error must be 'warn' or 'block'")
     mbc = cfg.run["min_block_confidence"]

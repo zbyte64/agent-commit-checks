@@ -31,6 +31,10 @@ def get_backend(cfg: Config, agent: str, override: str | None = None) -> Backend
         from .omp import OmpBackend
 
         return OmpBackend(settings, cfg.root)
+    if name == "local":
+        from .local import LocalBackend
+
+        return LocalBackend(settings)
     if name == "fake":
         from .fake import FakeBackend
 

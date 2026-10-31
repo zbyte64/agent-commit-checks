@@ -89,6 +89,36 @@ Put the **MCP server** in `.omp/mcp.json` (project) or `~/.omp/agent/mcp.json` (
 { "mcpServers": { "acc": { "command": "/home/you/.local/bin/acc", "args": ["mcp", "--agent", "omp"] } } }
 ```
 
+### Local model
+
+Instead of the agent's own model, every check can run on a small decision model on this machine.
+It needs no login or network after the first download, and the diff never leaves the machine.
+
+```sh
+acc init --local   # sets run.backend = "local" in .acc/config.toml
+acc doctor         # starts llama-server, which downloads the model on first use
+```
+
+`run.backend = "local"` overrides the `claude` and `omp` backends for every agent. An
+`[agents.<name>] backend` entry still wins for that agent. The backend needs llama.cpp's
+`llama-server` ([prebuilt releases](https://github.com/ggml-org/llama.cpp/releases); the CPU build
+is enough). Put it on `PATH` or set `server` to its absolute path:
+
+```toml
+[backends.local]
+url = "http://127.0.0.1:8763"
+model = "Qwen/Qwen3-1.7B-GGUF:Q8_0"   # Hugging Face GGUF repo:quant
+server = "~/.local/bin/llama-server"      # "" if you run the server yourself
+# server_args = ["--ctx-size", "16384", "--parallel", "2"]
+# startup_seconds = 300                   # the first start downloads the model
+```
+
+If nothing answers at `url`, acc starts `llama-server -hf <model>` in the background and leaves it
+running for later pushes. Its output goes to `~/.local/share/acc/llama-server.log`. Any server
+with an OpenAI-style `/v1/chat/completions` that supports `json_schema` response formats also
+works, e.g. Ollama with `url = "http://127.0.0.1:11434"`, an Ollama tag as `model`, and
+`server = ""`.
+
 ## Check files
 
 `.acc/checks/<id>.toml`. See [examples/.acc/checks](examples/.acc/checks) for one check of each type.
@@ -140,7 +170,7 @@ were, and records each unit's confidence.
 | `acc grade <id> [--sample N] [--commits REV... \| --range A..B ...]` | grade against history (or chosen commits or ranges), write `.acc/grades/<id>.json` |
 | `acc list`, `acc validate [file]` | inspect and schema-check checks |
 | `acc promote <id> [--to advisory\|active] [--force]` | change status |
-| `acc init [--omp]`, `acc doctor [--agent omp]`, `acc mcp [--agent omp]` | setup, diagnostics, MCP server |
+| `acc init [--omp] [--local]`, `acc doctor [--agent omp]`, `acc mcp [--agent omp]` | setup (`--local`: run checks on a local model), diagnostics, MCP server |
 
 Logs: `~/.local/share/acc/logs/YYYY/MM/DD/events.jsonl` (override with `ACC_LOG_DIR`). The log
 holds hashes and sizes only, never diff text or secrets.

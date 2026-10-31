@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -14,6 +15,7 @@ from pathlib import Path
 from . import checks as checks_mod
 from . import grading, omp_setup, ops
 from .backends import BackendError, get_backend
+from .backends.local import RECOMMENDED_MODEL, LocalBackend, server_log
 from .checks import CheckError
 from .config import ConfigError, home_relative, load_config
 from .gate import format_result, run_claude_hook, run_omp_gate
@@ -173,6 +175,7 @@ def cmd_init(a: argparse.Namespace) -> int:
     tpl = resources.files("acc") / "templates"
     claude = shutil.which("claude")
     omp = shutil.which("omp")
+    llama = shutil.which("llama-server")
     created = []
     (acc_dir / "checks").mkdir(parents=True, exist_ok=True)
     (acc_dir / "grades").mkdir(parents=True, exist_ok=True)
@@ -188,7 +191,9 @@ def cmd_init(a: argparse.Namespace) -> int:
             return home_relative(str(Path(found).absolute())) if found else name
 
         cfg_path.write_text(text.replace("__CLAUDE__", launcher(claude, "claude"))
-                            .replace("__OMP__", launcher(omp, "omp")))
+                            .replace("__OMP__", launcher(omp, "omp"))
+                            .replace("__LLAMA_SERVER__", launcher(llama, "llama-server"))
+                            .replace("__LOCAL_MODEL__", RECOMMENDED_MODEL))
         created.append(cfg_path)
     for name in ("no-debug-leftovers.toml", "commit-message-matches-diff.toml"):
         dest = acc_dir / "checks" / name
@@ -199,6 +204,8 @@ def cmd_init(a: argparse.Namespace) -> int:
         print(f"created {p.relative_to(root)}")
     if not created:
         print(".acc/ already set up; nothing created.")
+    if a.local:
+        _init_local(cfg_path, llama)
     if a.omp:
         return _init_omp(root)
     if not claude:
@@ -207,6 +214,41 @@ def cmd_init(a: argparse.Namespace) -> int:
     print(_snippets(_acc_path()))
     print("For oh-my-pi, run `acc init --omp`.")
     return 0
+
+
+LOCAL_SECTION = """
+[backends.local]
+url = "http://127.0.0.1:8763"
+model = "{model}"
+server = "{server}"
+"""
+
+
+def enable_local(text: str, server: str) -> str:
+    """Config text with `run.backend = "local"` set, adding a [backends.local] section if missing."""
+    if "[backends.local]" not in text:
+        text = text.rstrip("\n") + "\n" + LOCAL_SECTION.format(model=RECOMMENDED_MODEL, server=server)
+    run = re.search(r"^\[run\]$", text, re.M)
+    if not run:
+        return text.rstrip("\n") + '\n\n[run]\nbackend = "local"\n'
+    # Only the [run] table: [agents.*] tables also have `backend` keys.
+    end = re.search(r"^\[", text[run.end():], re.M)
+    stop = run.end() + end.start() if end else len(text)
+    body, n = re.subn(r'^#? *backend *=.*$', 'backend = "local"', text[run.end():stop], count=1, flags=re.M)
+    if not n:
+        body = '\nbackend = "local"' + body
+    return text[:run.end()] + body + text[stop:]
+
+
+def _init_local(cfg_path: Path, llama: str | None) -> None:
+    server = home_relative(str(Path(llama).absolute())) if llama else "llama-server"
+    cfg_path.write_text(enable_local(cfg_path.read_text(), server))
+    print(f'set run.backend = "local" in {cfg_path.name}: every agent now uses the local model')
+    if not llama:
+        print("warning: `llama-server` not found on PATH. Install llama.cpp "
+              "(https://github.com/ggml-org/llama.cpp/releases), then set backends.local.server "
+              "to its absolute path.")
+    print("Run `acc doctor` once: it starts llama-server, which downloads the model on first use.")
 
 
 def _init_omp(root: Path) -> int:
@@ -287,6 +329,16 @@ def cmd_doctor(a: argparse.Namespace) -> int:
             report(bool(v) and v >= MIN_HOOK_VERSION,
                    f"Claude Code {ver or '?'}; hook `args`/`if`/`onFailure` need "
                    f"{'.'.join(map(str, MIN_HOOK_VERSION))}+", warn_only=True)
+    elif name == "local":
+        local = LocalBackend(cfg.backend_settings("local"))
+        up = local.ready()
+        report(up, f"model server at {local.url} " + (
+            "is ready" if up else "is not running" + (" (acc will start it)" if local.server else "")),
+            warn_only=bool(local.server))
+        if not up and local.server:
+            binary_path = local.server if os.path.isabs(local.server) else shutil.which(local.server)
+            report(bool(binary_path), f"llama-server binary: {binary_path or local.server}")
+            report(True, f"model {local.model}; server log {server_log()}")
     elif name == "omp":
         path = binary("omp")
         model = cfg.backend_settings("omp")["model"]
@@ -402,6 +454,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--omp", action="store_true",
                     help="set up omp instead of Claude Code: install the extension in "
                          "~/.omp/agent/extensions and print the omp setup")
+    sp.add_argument("--local", action="store_true",
+                    help=f"run every check on a local model ({RECOMMENDED_MODEL} via llama-server) "
+                         "instead of the agent's own model")
     sp.set_defaults(fn=cmd_init)
 
     sp = sub.add_parser("doctor", help="verify backend, auth, config and check files")
