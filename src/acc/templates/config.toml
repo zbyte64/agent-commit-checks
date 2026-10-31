@@ -13,9 +13,11 @@ model = "@decision"        # omp role alias: set modelRoles.decision in ~/.omp/a
 
 [backends.local]
 # A small decision model on this machine, served by llama.cpp's llama-server (see the
-# README's "Local model" section). `acc init --local` turns it on for every agent.
+# README's "Local model" section). `acc init --local [cpu|gpu]` turns a local model on
+# for every agent.
 url = "http://127.0.0.1:8763"
 model = "__LOCAL_MODEL__"  # Hugging Face GGUF repo:quant (or an Ollama tag)
+device = "cpu"             # or "gpu", with a GPU build of llama-server (Vulkan, CUDA or ROCm)
 server = "__LLAMA_SERVER__"  # started when nothing answers at url; "" if you run the server yourself
 
 # Each agent uses its own CLI by default. Route an agent to a different backend,

@@ -34,8 +34,12 @@ from .. import log
 from ..prompt import json_object, with_schema
 from . import BackendError
 
-# Picked by benchmarking on a CPU-only laptop; see the README's "Local model" section.
-RECOMMENDED_MODEL = "Qwen/Qwen3-1.7B-GGUF:Q8_0"
+# Picked by benchmarking on a laptop (Ryzen 9 7940HS, Radeon 780M); see the README's "Local model" section.
+RECOMMENDED_MODELS = {"cpu": "Qwen/Qwen3-1.7B-GGUF:Q8_0", "gpu": "Qwen/Qwen3-1.7B-GGUF:Q8_0"}
+RECOMMENDED_MODEL = RECOMMENDED_MODELS["cpu"]
+# `cpu` turns GPU devices off: with -ngl 0 alone, a GPU build still offloads large prompt matmuls.
+DEVICE_ARGS = {"cpu": ["--device", "none"], "gpu": ["--n-gpu-layers", "999"]}
+DEVICES = tuple(DEVICE_ARGS)
 DEFAULT_URL = "http://127.0.0.1:8763"
 # Room for a 12000-character diff, the prompt and a long answer in each of two slots.
 DEFAULT_SERVER_ARGS = ["--ctx-size", "16384", "--parallel", "2"]
@@ -51,37 +55,55 @@ class LocalBackend:
 
     def __init__(self, settings: dict):
         self.url = settings.get("url", DEFAULT_URL).rstrip("/")
-        self.model = settings.get("model", RECOMMENDED_MODEL)
+        self.device = settings.get("device", "cpu")
+        if self.device not in DEVICES:
+            raise BackendError(f"backends.local.device must be one of {', '.join(DEVICES)}, not {self.device!r}")
+        self.model = settings.get("model", RECOMMENDED_MODELS[self.device])
         self.server = settings.get("server", "")
         self.server_args = settings.get("server_args", DEFAULT_SERVER_ARGS)
         self.startup_seconds = float(settings.get("startup_seconds", 300))
 
     # ── server ───────────────────────────────────────────────────────────────
 
-    def ready(self, timeout: float = 2) -> bool:
-        """True once the server answers `/v1/models`; llama-server returns 503 while loading."""
+    def served_models(self, timeout: float = 2) -> list[str] | None:
+        """The model ids at `/v1/models`, or None until the server answers (llama-server returns 503
+        while loading)."""
         try:
             with urllib.request.urlopen(f"{self.url}/v1/models", timeout=timeout) as r:
-                return r.status == 200
+                data = json.loads(r.read() or b"{}")
         except (OSError, ValueError):
-            return False
+            return None
+        models = data.get("data") if isinstance(data, dict) else None
+        return [m.get("id", "") for m in models if isinstance(m, dict)] if isinstance(models, list) else []
+
+    def ready(self, timeout: float = 2) -> bool:
+        return self.served_models(timeout) is not None
+
+    def check_model(self) -> None:
+        """A server left running with another model (e.g. after switching presets) would answer
+        every check with it, so refuse instead."""
+        served = self.served_models()
+        if served and self.model not in served:
+            raise BackendError(f"the server at {self.url} serves {', '.join(served)}, not {self.model}; "
+                               f"stop it (pkill -f 'llama-server.*--port {urlsplit(self.url).port}') "
+                               "and acc will start the configured model")
 
     def server_argv(self) -> list[str]:
         parts = urlsplit(self.url)
         return [self.server, "-hf", self.model, "--alias", self.model,
                 "--host", parts.hostname or "127.0.0.1", "--port", str(parts.port or 80),
-                *self.server_args]
+                *DEVICE_ARGS[self.device], *self.server_args]
 
     def ensure_server(self) -> None:
         """Start the server if it is configured and not answering, then wait until it is ready."""
         if self.ready():
-            return
+            return self.check_model()
         if not self.server:
             raise BackendError(f"no model server answers at {self.url}; start one, or set "
                                "[backends.local] server so acc starts llama-server itself")
         with _start_lock:
             if self.ready():
-                return
+                return self.check_model()
             path = self.server if os.path.isabs(self.server) else shutil.which(self.server)
             if not path:
                 raise BackendError(f"local model server not found at {self.server!r}; install llama.cpp "
@@ -137,6 +159,15 @@ class LocalBackend:
         except OSError as e:
             raise BackendError(f"local model server at {self.url} failed: {e}") from None
         return parse_output(raw, schema)
+
+
+def list_devices(server: str) -> list[str]:
+    """The GPUs a llama-server build can use, from `llama-server --list-devices`."""
+    try:
+        out = subprocess.run([server, "--list-devices"], capture_output=True, text=True, timeout=30).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return [m.group(1) for m in re.finditer(r"^\s+\w+\d+: (.+?)(?: \(\d+ MiB.*)?$", out, re.M)]
 
 
 def server_log() -> Path:

@@ -13,8 +13,8 @@ import pytest
 
 from acc import checks
 from acc.backends import BackendError, get_backend
-from acc.backends.local import LocalBackend, parse_output
-from acc.cli import enable_local, main
+from acc.backends.local import DEFAULT_URL, DEVICE_ARGS, LocalBackend, parse_output
+from acc.cli import enable_local, main, set_keys
 from acc.config import load_config
 
 SCHEMA = {"type": "object", "properties": {"checks": {"type": "object"}}, "required": ["checks"]}
@@ -131,20 +131,51 @@ def test_starts_the_server_when_down(tmp_path, monkeypatch):
         assert backend.ask("s", "p", "", SCHEMA, 5) == {"checks": {}}
         argv = json.loads((tmp_path / "argv.json").read_text())
         assert argv == ["-hf", "org/repo:Q8_0", "--alias", "org/repo:Q8_0", "--host", "127.0.0.1",
-                        "--port", str(port), "--ctx-size", "4096"]
+                        "--port", str(port), "--device", "none", "--ctx-size", "4096"]
     finally:
         subprocess.run(["pkill", "-f", str(script)])
 
 
-def test_enable_local_edits_only_the_run_table():
+def test_set_keys_edits_only_its_table():
     text = '[agents.claude]\nbackend = "fake"\n\n[run]\n# backend = "local"   # note\ntimeout_seconds = 90\n'
-    out = enable_local(text, "llama-server")
-    assert '[agents.claude]\nbackend = "fake"' in out
-    assert '[run]\nbackend = "local"\ntimeout_seconds = 90' in out
-    assert "[backends.local]" in out
-    assert enable_local(out, "llama-server") == out
-    assert enable_local("[run]\nparallel = 2\n", "s").startswith('[run]\nbackend = "local"\nparallel = 2')
-    assert enable_local("", "s").endswith('[run]\nbackend = "local"\n')
+    out = set_keys(text, "run", {"backend": '"local"'})
+    assert out == '[agents.claude]\nbackend = "fake"\n\n[run]\nbackend = "local"\ntimeout_seconds = 90\n'
+    assert set_keys(out, "run", {"backend": '"local"'}) == out
+    assert set_keys("[run]\nparallel = 2\n", "run", {"backend": '"x"'}) == '[run]\nbackend = "x"\nparallel = 2\n'
+    assert set_keys("", "run", {"backend": '"x"'}) == '[run]\nbackend = "x"\n'
+    # defaults only fill missing keys
+    assert set_keys('[t]\nurl = "mine"\n', "t", {}, defaults={"url": '"d"', "server": '"s"'}) == \
+        '[t]\nserver = "s"\nurl = "mine"\n'
+
+
+@pytest.mark.parametrize("preset,backend", [("cpu", "local"), ("gpu", "local")])
+def test_enable_local_presets(tmp_path, preset, backend):
+    (tmp_path / ".acc").mkdir()
+    (tmp_path / ".acc/config.toml").write_text(enable_local('[run]\nparallel = 2\n', preset, "llama-server"))
+    cfg = load_config(tmp_path)
+    assert cfg.backend_for("claude") == backend
+    if backend == "local":
+        local = LocalBackend(cfg.backend_settings("local"))
+        assert local.device == preset and local.server == "llama-server"
+        assert local.server_argv()[-len(DEVICE_ARGS[preset]) - 4:-4] == DEVICE_ARGS[preset]
+
+
+def test_switching_presets_keeps_url_and_server():
+    text = enable_local("", "cpu", "/opt/llama-server").replace(DEFAULT_URL, "http://127.0.0.1:9000")
+    out = enable_local(text, "gpu", "llama-server")
+    assert 'device = "gpu"' in out and 'url = "http://127.0.0.1:9000"' in out
+    assert 'server = "/opt/llama-server"' in out and out.count("[backends.local]") == 1
+
+
+def test_unknown_device():
+    with pytest.raises(BackendError, match="device must be one of cpu, gpu"):
+        LocalBackend({"device": "tpu"})
+
+
+def test_refuses_a_server_with_another_model(server):
+    server.httpd.RequestHandlerClass.do_GET = lambda h: h.send(200, '{"data": [{"id": "other/model"}]}')
+    with pytest.raises(BackendError, match="serves other/model, not mine/model"):
+        LocalBackend({"url": server.url, "model": "mine/model"}).ask("s", "p", "", SCHEMA, 5)
 
 
 def test_init_local(repo, capsys, monkeypatch):

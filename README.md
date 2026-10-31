@@ -93,31 +93,43 @@ Put the **MCP server** in `.omp/mcp.json` (project) or `~/.omp/agent/mcp.json` (
 
 Instead of the agent's own model, every check can run on a small decision model on this machine.
 It needs no login or network after the first download, and the diff never leaves the machine.
+There are two options:
+
+| `acc init --local …` | Runs | Needs |
+| --- | --- | --- |
+| `cpu` (default) | a small chat model in llama.cpp's `llama-server`, on the CPU | `llama-server` (any build) |
+| `gpu` | a larger chat model in `llama-server`, on the GPU | a GPU build: Vulkan (AMD, Intel), CUDA or ROCm |
 
 ```sh
-acc init --local   # sets run.backend = "local" in .acc/config.toml
-acc doctor         # starts llama-server, which downloads the model on first use
+acc init --local gpu   # sets run.backend and the backend's model in .acc/config.toml
+acc doctor             # loads the model (downloading it on first use) and makes a test call
 ```
 
-`run.backend = "local"` overrides the `claude` and `omp` backends for every agent. An
-`[agents.<name>] backend` entry still wins for that agent. The backend needs llama.cpp's
-`llama-server` ([prebuilt releases](https://github.com/ggml-org/llama.cpp/releases); the CPU build
-is enough). Put it on `PATH` or set `server` to its absolute path:
+`run.backend` overrides the `claude` and `omp` backends for every agent. An
+`[agents.<name>] backend` entry still wins for that agent. Running `acc init --local` again with
+another option switches the project to it.
+
+**cpu and gpu.** The `local` backend needs llama.cpp's `llama-server`
+([prebuilt releases](https://github.com/ggml-org/llama.cpp/releases)). A GPU build also serves
+`device = "cpu"`. Put it on `PATH` or set `server` to its absolute path:
 
 ```toml
 [backends.local]
 url = "http://127.0.0.1:8763"
 model = "Qwen/Qwen3-1.7B-GGUF:Q8_0"   # Hugging Face GGUF repo:quant
-server = "~/.local/bin/llama-server"      # "" if you run the server yourself
+device = "cpu"                         # "gpu" offloads every layer; "cpu" turns GPUs off
+server = "~/.local/bin/llama-server"   # "" if you run the server yourself
 # server_args = ["--ctx-size", "16384", "--parallel", "2"]
-# startup_seconds = 300                   # the first start downloads the model
+# startup_seconds = 300                # the first start downloads the model
 ```
 
 If nothing answers at `url`, acc starts `llama-server -hf <model>` in the background and leaves it
-running for later pushes. Its output goes to `~/.local/share/acc/llama-server.log`. Any server
-with an OpenAI-style `/v1/chat/completions` that supports `json_schema` response formats also
-works, e.g. Ollama with `url = "http://127.0.0.1:11434"`, an Ollama tag as `model`, and
-`server = ""`. Confidence is measured only when the server returns `logprobs`.
+running for later pushes. Its output goes to `~/.local/share/acc/llama-server.log`. If the running
+server holds a different model (for example after switching options), acc refuses to use it and
+says how to stop it. `acc doctor` lists the GPUs a `llama-server` build can use. Any server with an
+OpenAI-style `/v1/chat/completions` that supports `json_schema` response formats also works, e.g.
+Ollama with `url = "http://127.0.0.1:11434"`, an Ollama tag as `model`, and `server = ""`.
+Confidence is measured only when the server returns `logprobs`.
 
 ## Check files
 
@@ -139,8 +151,8 @@ valid confidence is invalid and is retried alone, like a missing answer.
 
 The `local` backend measures confidence instead of asking for it: a small model writes 1.0 almost
 every time. It reads the model's token probabilities at the answer and adds up the probability of
-every answer that gives the same verdict. A model that wrote `0.0` for a `bool` check but put 27%
-on `0.9` gets confidence 0.73 for its `pass`.
+every answer that gives the same verdict. A model that wrote `0.0` for a `bool`
+check but put 27% on `0.9` gets confidence 0.73 for its `pass`.
 
 A check answers once for the whole push. The model sees the combined diff of every pushed
 commit and each commit's message, prefixed by its short sha. There is no per-commit mode.
