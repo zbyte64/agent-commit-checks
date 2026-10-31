@@ -8,12 +8,19 @@ response formats also works (e.g. Ollama at http://127.0.0.1:11434 with `server 
 The answer schema is enforced by the server's grammar-constrained decoding, so even a
 tiny model returns well-formed JSON. It also goes in the prompt so the model knows
 what each field means.
+
+A small model's self-reported `confidence` is noise (it writes 1.0 almost every time),
+so this backend measures it instead. It reads the token probabilities at each answer's
+decision tokens and attaches `answer_probs`: the model's probability for each answer it
+considered. `checks.validate_entry` turns that into the probability of the same verdict.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import os
+import re
 import shutil
 import subprocess
 import threading
@@ -33,6 +40,9 @@ DEFAULT_URL = "http://127.0.0.1:8763"
 # Room for a 12000-character diff, the prompt and a long answer in each of two slots.
 DEFAULT_SERVER_ARGS = ["--ctx-size", "16384", "--parallel", "2"]
 MAX_TOKENS = 2048
+# Alternatives read at each answer token. The probabilities are taken before the schema
+# constraint, so many alternatives are not valid answers and are dropped.
+TOP_LOGPROBS = 20
 _start_lock = threading.Lock()
 
 
@@ -102,6 +112,8 @@ class LocalBackend:
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "temperature": 0,
             "max_tokens": MAX_TOKENS,
+            "logprobs": True,
+            "top_logprobs": TOP_LOGPROBS,
             "response_format": {"type": "json_schema",
                                 "json_schema": {"name": "checks", "strict": True, "schema": schema}},
             # Thinking is off so the model answers like a decision model (Qwen3 templates read this).
@@ -124,14 +136,14 @@ class LocalBackend:
             raise BackendError(f"local model timed out after {timeout:.0f}s") from None
         except OSError as e:
             raise BackendError(f"local model server at {self.url} failed: {e}") from None
-        return parse_output(raw)
+        return parse_output(raw, schema)
 
 
 def server_log() -> Path:
     return log.log_dir().parent / "llama-server.log"
 
 
-def parse_output(raw: str) -> dict:
+def parse_output(raw: str, schema: dict | None = None) -> dict:
     try:
         choice = json.loads(raw)["choices"][0]
         text = choice["message"]["content"] or ""
@@ -143,4 +155,84 @@ def parse_output(raw: str) -> dict:
         raise BackendError(f"local model answer {why}", retryable=True)
     if not isinstance(data.get("checks"), dict):
         raise BackendError("local model answer has no `checks` object", retryable=True)
+    tokens = (choice.get("logprobs") or {}).get("content")
+    if schema and tokens:
+        add_answer_probs(data, tokens, schema)
     return data
+
+
+# ── confidence from token probabilities ──────────────────────────────────────
+
+_NUMBER = re.compile(r"-?\d+(?:\.\d*)?")
+
+
+def _resolve(text: str, answer_schema: dict) -> tuple[object, bool] | None:
+    """The answer value a partial answer text stands for, and whether it is final.
+
+    None means the text is not a valid answer, or still matches several. A number that
+    has not ended stands for the middle of the range it covers ("0.8" -> 0.85).
+    """
+    if "enum" in answer_schema:
+        core, closed = text.split('"', 1)[0].lower(), '"' in text
+        hits = [v for v in answer_schema["enum"] if (v.lower() == core if closed else v.lower().startswith(core))]
+        return (hits[0], True) if core and len(hits) == 1 else None
+    m = _NUMBER.match(text)
+    if not m:
+        return None
+    core, closed = m.group(), m.end() < len(text)
+    if answer_schema.get("type") == "integer":
+        return int(core), closed
+    lo, hi = answer_schema.get("minimum", 0), answer_schema.get("maximum", 1)
+    if closed:
+        value = float(core)
+    elif "." in core and not core.endswith("."):
+        value = float(core) + 0.5 * 10 ** -(len(core) - core.index(".") - 1)
+    elif float(core.rstrip(".")) >= hi:
+        value = hi
+    else:
+        return None
+    return round(min(max(value, lo), hi), 6), closed
+
+
+def _alternatives(tokens: list[dict], starts: list[int], pos: int, answer_schema: dict) -> dict:
+    """{answer value: probability} along the chosen tokens, from the answer's first character at `pos`."""
+    i = max(k for k, s in enumerate(starts) if s <= pos)
+    cut, prefix, path_p = pos - starts[i], "", 1.0
+    probs: dict = {}
+    for k in range(i, len(tokens)):
+        tok, c = tokens[k], (cut if k == i else 0)
+        for alt in tok.get("top_logprobs", []):
+            if alt["token"] == tok["token"]:
+                continue
+            hit = _resolve(prefix + alt["token"][c:], answer_schema)
+            if hit is not None:
+                probs[hit[0]] = probs.get(hit[0], 0.0) + path_p * math.exp(alt["logprob"])
+        prefix += tok["token"][c:]
+        path_p *= math.exp(tok["logprob"])
+        hit = _resolve(prefix, answer_schema)
+        if hit is not None and hit[1]:
+            probs[hit[0]] = probs.get(hit[0], 0.0) + path_p
+            return probs
+    return {}
+
+
+def add_answer_probs(data: dict, tokens: list[dict], schema: dict) -> None:
+    """Attach `answer_probs` ([[value, probability], ...], summing to 1) to each answer."""
+    text, starts = "", []
+    for tok in tokens:
+        starts.append(len(text))
+        text += tok["token"]
+    specs = schema["properties"]["checks"].get("properties", {})
+    pos = 0
+    for key, entry in data["checks"].items():
+        spec = specs.get(key, {}).get("properties", {}).get("answer")
+        at = text.find(json.dumps(key), pos)
+        m = re.compile(r'"answer"\s*:\s*"?').search(text, at) if spec and at >= 0 else None
+        if not m or not isinstance(entry, dict):
+            continue
+        pos = m.end()
+        probs = _alternatives(tokens, starts, m.end(), spec)
+        total = sum(probs.values())
+        if total > 0 and entry.get("answer") in probs:
+            entry["answer_probs"] = [[v, round(p / total, 4)] for v, p in probs.items()
+                                     if p / total >= 0.001 or v == entry["answer"]]

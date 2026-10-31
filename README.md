@@ -117,7 +117,7 @@ If nothing answers at `url`, acc starts `llama-server -hf <model>` in the backgr
 running for later pushes. Its output goes to `~/.local/share/acc/llama-server.log`. Any server
 with an OpenAI-style `/v1/chat/completions` that supports `json_schema` response formats also
 works, e.g. Ollama with `url = "http://127.0.0.1:11434"`, an Ollama tag as `model`, and
-`server = ""`.
+`server = ""`. Confidence is measured only when the server returns `logprobs`.
 
 ## Check files
 
@@ -136,6 +136,11 @@ backends are chat models acting as decision models, so the answer schema asks fo
 the answer. A `block` answered with confidence below `run.min_block_confidence` (default 0.7)
 becomes a `warn` that says "low confidence", in the gate and in grades. An answer without a
 valid confidence is invalid and is retried alone, like a missing answer.
+
+The `local` backend measures confidence instead of asking for it: a small model writes 1.0 almost
+every time. It reads the model's token probabilities at the answer and adds up the probability of
+every answer that gives the same verdict. A model that wrote `0.0` for a `bool` check but put 27%
+on `0.9` gets confidence 0.73 for its `pass`.
 
 A check answers once for the whole push. The model sees the combined diff of every pushed
 commit and each commit's message, prefixed by its short sha. There is no per-commit mode.

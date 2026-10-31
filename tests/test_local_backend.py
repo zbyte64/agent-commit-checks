@@ -1,6 +1,7 @@
 """The local backend against a stand-in OpenAI-compatible server, and its config switch."""
 
 import json
+import math
 import socket
 import subprocess
 import sys
@@ -10,6 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
+from acc import checks
 from acc.backends import BackendError, get_backend
 from acc.backends.local import LocalBackend, parse_output
 from acc.cli import enable_local, main
@@ -153,3 +155,79 @@ def test_init_local(repo, capsys, monkeypatch):
     assert get_backend(cfg, "omp").name == "local"
     assert "set run.backend" in capsys.readouterr().out
 
+
+# ── confidence from token probabilities ──────────────────────────────────────
+
+
+def tok(text, p=1.0, **alts):
+    return {"token": text, "logprob": math.log(p),
+            "top_logprobs": [{"token": t, "logprob": math.log(q)} for t, q in alts.items()]}
+
+
+def answer_with(tokens, schema):
+    raw = json.dumps({"choices": [{"message": {"content": "".join(t["token"] for t in tokens)},
+                                   "finish_reason": "stop", "logprobs": {"content": tokens}}]})
+    return parse_output(raw, schema)["checks"]
+
+
+def check(text):
+    return checks.parse_text(textwrap.dedent(text), "c")
+
+
+CHOICE = check("""
+    id = "c"
+    title = "t"
+    [question]
+    type = "choice"
+    instructions = "q"
+    labels = { accurate = "a", incomplete = "i", wrong = "w" }
+    [verdict]
+    accurate = "pass"
+    incomplete = "block"
+    wrong = "block"
+""")
+BOOL = check("""
+    id = "c"
+    title = "t"
+    [question]
+    type = "bool"
+    instructions = "q"
+    [verdict]
+    block_at = 0.85
+    warn_at = 0.5
+""")
+
+
+def schema_for(c):
+    checks_schema = {"type": "object", "properties": {"c": checks.answer_schema(c)}}
+    return {"type": "object", "properties": {"checks": checks_schema}}
+
+
+def test_choice_probabilities_from_tokens():
+    # "In" counts for `incomplete` (case is ignored); "The" is not a label and is dropped.
+    tokens = [tok('{"checks": {"c": {"answer": "'), tok("acc", 0.5, In=0.2, inc=0.1, The=0.1, wr=0.05),
+              tok("urate"), tok('", "confidence": 1, "findings": [], "summary": "s"}}}')]
+    entry = answer_with(tokens, schema_for(CHOICE))["c"]
+    assert dict(entry["answer_probs"]) == pytest.approx({"accurate": 0.5 / 0.85, "incomplete": 0.3 / 0.85,
+                                                         "wrong": 0.05 / 0.85}, abs=1e-4)
+    verdict, _, _, confidence = checks.validate_entry(CHOICE, entry)
+    assert verdict == "pass"
+    assert confidence == pytest.approx(0.5 / 0.85, abs=1e-3)  # not the self-reported 1
+
+
+def test_number_probabilities_and_verdict_mass():
+    # The model wrote 0.9, with 0.1 on "1", 0.27 on "0.1…" and 0.09 on "0.8…".
+    tokens = [tok('{"checks": {"c": {"answer": '), tok("0", 0.9, **{"1": 0.1}), tok("."),
+              tok("9", 0.6, **{"1": 0.3, "8": 0.1}), tok(', "confidence": 1, "findings": [], "summary": "s"}}}')]
+    entry = answer_with(tokens, schema_for(BOOL))["c"]
+    assert dict(entry["answer_probs"]) == pytest.approx({1: 0.1, 0.15: 0.27, 0.85: 0.09, 0.9: 0.54}, abs=1e-4)
+    verdict, _, _, confidence = checks.validate_entry(BOOL, entry)
+    assert verdict == "block"
+    assert confidence == pytest.approx(0.73, abs=1e-3)  # every answer at or above block_at
+
+
+def test_without_logprobs_self_reported_confidence_stands():
+    raw = completion('{"checks": {"c": {"answer": "wrong", "confidence": 0.8, "findings": [], "summary": "s"}}}')
+    entry = parse_output(raw, schema_for(CHOICE))["checks"]["c"]
+    assert "answer_probs" not in entry
+    assert checks.validate_entry(CHOICE, entry)[3] == 0.8
