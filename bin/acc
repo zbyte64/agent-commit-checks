@@ -1,0 +1,15 @@
+#!/bin/sh
+# The `acc` command: runs acc.mjs next to this file with Bun if it is installed, else with Node (22+).
+self=$0
+while [ -L "$self" ]; do
+	target=$(readlink "$self")
+	case $target in
+	/*) self=$target ;;
+	*) self=$(dirname "$self")/$target ;;
+	esac
+done
+dir=$(dirname "$self")
+if command -v bun >/dev/null 2>&1; then exec bun "$dir/acc.mjs" "$@"; fi
+if command -v node >/dev/null 2>&1; then exec node "$dir/acc.mjs" "$@"; fi
+echo "acc: needs Bun or Node.js 22+ on PATH" >&2
+exit 127

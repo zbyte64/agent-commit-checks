@@ -16,7 +16,7 @@
     "node": ">=22"
   },
   "bin": {
-    "acc": "./bin/acc.mjs"
+    "acc": "./bin/acc"
   },
   "files": [
     "bin/",

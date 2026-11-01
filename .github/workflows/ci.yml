@@ -32,3 +32,4 @@ jobs:
       # Tests use the fake backend and throwaway repos; no claude, omp or pi login needed.
       - run: bun test
       - run: node bin/acc.mjs --help
+      - run: bin/acc --help

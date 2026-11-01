@@ -24,7 +24,8 @@ omp install git:github.com/zbyte64/agent-commit-checks
 pi install git:github.com/zbyte64/agent-commit-checks
 ```
 
-For Claude Code, or to run `acc` in a shell, install the CLI with npm (Node 22 or later) or bun:
+For Claude Code, or to run `acc` in a shell, install the CLI with npm or bun. The `acc` command
+runs on Bun if it is on `PATH`, else on Node 22 or later:
 
 ```sh
 npm install -g github:zbyte64/agent-commit-checks   # or: bun install -g github:zbyte64/agent-commit-checks
@@ -341,6 +342,7 @@ bunx tsc -p .
 
 The source is TypeScript that runs unbuilt: Bun runs it directly (omp is built on Bun), and
 Node loads it through [jiti](https://github.com/unjs/jiti) (pi, and `bin/acc.mjs` under Node).
+`bin/acc` picks the runtime.
 Tests use `backend = "fake"` (`[agents.claude] backend = "fake"`, answers from a JSON file) and
 throwaway repos with a local bare remote. `tests/extensions.test.ts` loads both extensions against
 a stand-in host API.

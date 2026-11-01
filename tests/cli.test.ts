@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { main } from "../src/cli.ts";
 import { captureIo, checkToml, makeRepo, useTmp } from "./helpers.ts";
@@ -99,10 +99,13 @@ test("gate is only for Claude Code", async () => {
 	expect(io.stderr.join("\n")).toContain("inside the acc extension");
 });
 
-test("the launcher runs the CLI", () => {
+test("the acc command runs through a symlink, as npm and bun install it", () => {
 	const repo = makeRepo(tmp());
 	repo.enable({ checks: { a: checkToml("a") } });
-	const proc = spawnSync(process.execPath, [join(import.meta.dir, "..", "bin", "acc.mjs"), "list"], { cwd: repo.path, encoding: "utf8" });
+	const link = join(tmp(), "bin", "acc");
+	mkdirSync(join(tmp(), "bin"));
+	symlinkSync(join(import.meta.dir, "..", "bin", "acc"), link);
+	const proc = spawnSync(link, ["list"], { cwd: repo.path, encoding: "utf8" });
 	expect(proc.status).toBe(0);
 	expect(proc.stdout).toContain("a                                active    bool   user  grade=none");
 });
