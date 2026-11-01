@@ -118,6 +118,27 @@ test("heredoc, then a push on a later line", () => {
 	expect(parseCommand("cat > f.txt <<EOF\ndon't\nEOF\ngit push origin main").kind).toBe("push");
 });
 
+test("a comment ends at its line: the next line still pushes", () => {
+	const p = parseCommand("echo hi # note\ngit push origin main");
+	expect(p.kind).toBe("push");
+	expect(p.pushes[0].refspecs).toEqual(["main"]);
+	expect(parseCommand("# git push later\necho done").kind).toBe("none");
+});
+
+test("# inside a word is not a comment", () => {
+	const p = parseCommand("echo issue#12 && git push origin main");
+	expect(p.kind).toBe("push");
+	expect(p.pushes[0].refspecs).toEqual(["main"]);
+	expect(parseCommand('git commit -m "fix #3" && git push').kind).toBe("commit_and_push");
+});
+
+test("a backslash-newline continues the command", () => {
+	const p = parseCommand("git push \\\n  origin main");
+	expect(p.kind).toBe("push");
+	expect(p.pushes[0].remote).toBe("origin");
+	expect(p.pushes[0].refspecs).toEqual(["main"]);
+});
+
 test("subshell", () => {
 	expect(parseCommand("(cd sub && git push origin main)").kind).toBe("push");
 });

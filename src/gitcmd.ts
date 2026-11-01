@@ -109,19 +109,25 @@ const WHITESPACE = " \t\r\n";
 const PUNCTUATION = ";&|()";
 const QUOTES = "'\"";
 
-/** Python's ValueError from shlex. */
-export class ShlexError extends Error {
+/** An unterminated quote or a trailing backslash. */
+export class ShellSplitError extends Error {
 	constructor(message: string) {
 		super(message);
-		this.name = "ShlexError";
+		this.name = "ShellSplitError";
 	}
 }
 
 /**
- * Python's `shlex.shlex(text, posix=True, punctuation_chars=";&|()")` with `whitespace_split = True`
- * and `#` comments, token for token. A comment runs to the next newline.
+ * Split shell text into words and operator runs (`;&|()` characters, e.g. `&&`, `;;`, `|&`), the way
+ * Python's `shlex.shlex(text, posix=True, punctuation_chars=";&|()")` with `whitespace_split` does,
+ * with three shell rules shlex lacks:
+ *
+ * - `#` starts a comment only at the start of a word, as in sh: `issue#12` is one word.
+ * - A comment ends at the end of its line, and an unquoted newline is a `"\n"` token, so the next
+ *   line is a new command.
+ * - A backslash before a newline continues the line.
  */
-export function shlexSplit(text: string): string[] {
+export function shellSplit(text: string): string[] {
 	const tokens: string[] = [];
 	let pos = 0;
 	let pushback: string | null = null;
@@ -134,9 +140,9 @@ export function shlexSplit(text: string): string[] {
 		}
 		return pos < text.length ? text[pos++] : "";
 	};
-	const skipLine = (): void => {
+	const skipComment = (): void => {
 		const nl = text.indexOf("\n", pos);
-		pos = nl === -1 ? text.length : nl + 1;
+		pos = nl === -1 ? text.length : nl;
 	};
 
 	while (state !== null) {
@@ -149,10 +155,13 @@ export function shlexSplit(text: string): string[] {
 				if (!c) {
 					state = null;
 					break;
+				} else if (c === "\n") {
+					token = c;
+					break;
 				} else if (WHITESPACE.includes(c)) {
 					if (token || quoted) break;
 				} else if (c === "#") {
-					skipLine();
+					skipComment();
 				} else if (c === "\\") {
 					escapedState = "a";
 					state = c;
@@ -167,7 +176,7 @@ export function shlexSplit(text: string): string[] {
 				}
 			} else if (state === "'" || state === '"') {
 				quoted = true;
-				if (!c) throw new ShlexError("No closing quotation");
+				if (!c) throw new ShellSplitError("No closing quotation");
 				if (c === state) {
 					state = "a";
 				} else if (c === "\\" && state === '"') {
@@ -177,21 +186,24 @@ export function shlexSplit(text: string): string[] {
 					token += c;
 				}
 			} else if (state === "\\") {
-				if (!c) throw new ShlexError("No escaped character");
-				// In posix shells, only the quote itself or the escape character may be escaped within quotes.
-				if (QUOTES.includes(escapedState) && c !== state && c !== escapedState) token += state;
-				token += c;
+				if (!c) throw new ShellSplitError("No escaped character");
 				state = escapedState;
+				// A backslash-newline joins the lines, inside double quotes too.
+				if (c === "\n") continue;
+				// In posix shells, only the quote itself or the escape character may be escaped within quotes.
+				if (QUOTES.includes(escapedState) && c !== "\\" && c !== escapedState) token += "\\";
+				token += c;
 			} else {
 				// state "a" (word) or "c" (punctuation run)
 				if (!c) {
 					state = null;
 					break;
-				} else if (WHITESPACE.includes(c)) {
+				} else if (c === "\n") {
+					// The newline becomes its own token after this one.
+					pushback = c;
 					state = " ";
 					if (token || quoted) break;
-				} else if (c === "#") {
-					skipLine();
+				} else if (WHITESPACE.includes(c)) {
 					state = " ";
 					if (token || quoted) break;
 				} else if (state === "c") {
@@ -224,7 +236,7 @@ export function shlexSplit(text: string): string[] {
 }
 
 function tokenize(command: string): string[] {
-	return shlexSplit(command.replace(REDIRECT, " "));
+	return shellSplit(command.replace(REDIRECT, " "));
 }
 
 function segments(tokens: string[]): string[][] {
@@ -327,9 +339,9 @@ function join(base: string | null, path: string | null): string | null {
 function parse(command: string, depth = 0): ParsedCommand {
 	let tokens: string[];
 	try {
-		tokens = tokenize(stripHeredocs(command).replaceAll("\n", " ; "));
+		tokens = tokenize(stripHeredocs(command));
 	} catch (e) {
-		if (!(e instanceof ShlexError)) throw e;
+		if (!(e instanceof ShellSplitError)) throw e;
 		return parsed("unknown", [], `could not parse the command (${e.message})`);
 	}
 

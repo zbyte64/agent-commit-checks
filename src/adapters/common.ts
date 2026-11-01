@@ -2,7 +2,7 @@
 import { resolve } from "node:path";
 import { main } from "../cli.ts";
 import { type Decision, safeDecide } from "../gate.ts";
-import { shlexSplit, ShlexError } from "../gitcmd.ts";
+import { ShellSplitError, shellSplit } from "../gitcmd.ts";
 import { INSTRUCTIONS, TOOLS, type ToolEnv } from "../tools.ts";
 import type { HostApi, HostContext, HostToolDefinition, ToolCallEvent } from "./host.ts";
 
@@ -57,9 +57,9 @@ const CLI_ONLY = new Set(["gate", "mcp"]);
 export async function runAcc(args: string, cwd: string, agent: Agent): Promise<{ code: number; text: string }> {
 	let argv: string[];
 	try {
-		argv = shlexSplit(args);
+		argv = shellSplit(args).filter((a) => a !== "\n");
 	} catch (e) {
-		if (e instanceof ShlexError) return { code: 2, text: `acc: could not parse the arguments (${e.message})` };
+		if (e instanceof ShellSplitError) return { code: 2, text: `acc: could not parse the arguments (${e.message})` };
 		throw e;
 	}
 	if (CLI_ONLY.has(argv[0])) return { code: 2, text: `acc ${argv[0]} reads stdin; run it from a shell, not as /acc.` };
