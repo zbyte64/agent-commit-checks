@@ -3,20 +3,37 @@
 Model-backed checks on the commits a coding agent is about to push. The gate sits on the
 agent's `git push`. Blocked pushes return findings to the agent as the tool error.
 Checks are TOML files in the project, run on a cheap model through the agent's own login,
-and are also exposed as MCP tools.
+and are also exposed to the agent as tools.
 
-Two agents are supported: Claude Code (`claude` backend, a `PreToolUse` hook) and oh-my-pi
-(`omp` backend, an extension on the `bash` tool). Both use the same runner and MCP server.
+Three agents are supported, all with the same runner and check tools:
+
+| Agent | Gate | Check tools | Backend (model calls) |
+| --- | --- | --- | --- |
+| Claude Code | `acc gate` as a `PreToolUse` hook | `acc mcp` (MCP server) | `claude -p` |
+| oh-my-pi (omp) | the acc extension, on the `bash` tool | registered by the extension | `omp -p` |
+| [pi](https://pi.dev) | the acc extension, on the `bash` tool | registered by the extension | `pi -p` |
+
+acc is TypeScript. One package is the `acc` CLI, the omp extension and the pi extension.
 
 ## Install
 
+For omp or pi, install the extension; nothing else is needed:
+
 ```sh
-uv tool install 'agent-commit-checks[mcp] @ /path/to/agent-commit-checks'
+omp install git:github.com/zbyte64/agent-commit-checks
+pi install git:github.com/zbyte64/agent-commit-checks
+```
+
+For Claude Code, or to run `acc` in a shell, install the CLI with npm (Node 22 or later) or bun:
+
+```sh
+npm install -g github:zbyte64/agent-commit-checks   # or: bun install -g github:zbyte64/agent-commit-checks
 acc --help
 ```
 
 Use the absolute path of the installed `acc` in hook and MCP configs. A process started from
-VS Code may not see your shell `PATH`.
+VS Code may not see your shell `PATH`. Inside omp and pi, the `/acc` command runs the same CLI
+(`/acc list`, `/acc grade <id>`, `/acc doctor`, ...) in the session's project.
 
 In `.acc/config.toml`, backend `command` paths may use `~` or environment variables such as
 `$HOME` (e.g. `command = "~/.local/bin/claude"`). The file is committed, so it doesn't need
@@ -54,18 +71,19 @@ Put the **MCP server** in `.mcp.json`:
 
 ### oh-my-pi (omp)
 
-```sh
-cd my-project
-acc init --omp           # creates .acc/, installs ~/.omp/agent/extensions/acc.ts, prints the omp setup
-acc doctor --agent omp   # checks the omp binary, the model role, auth (one tiny call) and the extension
+After `omp install git:github.com/zbyte64/agent-commit-checks`, restart omp and, in the project:
+
+```text
+/acc init      # creates .acc/ and prints the omp setup (same as `acc init --omp`)
+/acc doctor    # checks the omp binary, the model role, auth (one tiny call) and the extension
 ```
 
-The extension runs `acc gate --agent omp --cwd <dir> --command <cmd>` before every `bash` tool
-call that mentions `git` and `push`. A `block` verdict stops the call and returns the findings to
-the model as the tool error. A `warn` verdict lets the push run and adds the findings to the
-model's context after the tool result. If `acc` is missing, crashes or prints invalid JSON, the
-push is blocked. `acc init --omp` writes the absolute `acc` path into the extension. Re-run it
-after moving `acc`, then restart omp.
+The extension runs the gate in the omp process before every `bash` tool call that mentions `git`
+and `push`. A `block` verdict stops the call and returns the findings to the model as the tool
+error. A `warn` verdict lets the push run and adds the findings to the model's context after the
+tool result. Any failure inside the gate blocks the push. The check tools (`list_checks`,
+`run_checks`, `test_check`, `grade_check`, `add_check`, `update_check`, `promote_check`) are
+registered as omp tools, so no MCP server is needed.
 
 The omp backend uses the `@decision` model role. Define it once in `~/.omp/agent/config.yml`,
 or per project in `.omp/config.yml`:
@@ -76,17 +94,33 @@ modelRoles:
 ```
 
 omp stops a `tool_call` handler after `extensionHandlers.toolCallTimeoutMs` (30 s by default)
-and then blocks the push. A gate run can take up to two rounds of `run.timeout_seconds`, so
-give it 180 s:
+and then blocks the push. A gate run can take up to two rounds of `run.timeout_seconds`, so in
+an acc project the extension raises the setting to that budget (180 s by default) for the omp
+session. It leaves the setting alone if you set it yourself.
 
-```sh
-omp config set extensionHandlers.toolCallTimeoutMs 180000
+**Upgrading from the Python version:** it installed `~/.omp/agent/extensions/acc.ts`, which calls
+`acc gate --agent omp`. That command is gone, so delete the file; `/acc doctor` reports it. Also
+remove an `acc` entry from `.omp/mcp.json`: the extension registers the same tools.
+
+### pi
+
+After `pi install git:github.com/zbyte64/agent-commit-checks`, restart pi (or run `/reload`) and,
+in the project:
+
+```text
+/acc init      # creates .acc/ and prints the pi setup (same as `acc init --pi`)
+/acc doctor    # checks the pi binary, the model, auth (one tiny call) and the extension
 ```
 
-Put the **MCP server** in `.omp/mcp.json` (project) or `~/.omp/agent/mcp.json` (all projects):
+The extension gates pushes like the omp one. pi's `tool_call` handlers can only block, so a `warn`
+verdict is appended to the `bash` tool's result instead. pi has no model roles: the `pi` backend
+calls `pi -p --model <backends.pi.model>`, by default `anthropic/claude-haiku-4-5`. Set it to a
+`provider/model` pi is logged in to (`pi --list-models`):
 
-```json
-{ "mcpServers": { "acc": { "command": "/home/you/.local/bin/acc", "args": ["mcp", "--agent", "omp"] } } }
+```toml
+[backends.pi]
+command = "~/.local/bin/pi"
+model = "anthropic/claude-haiku-4-5"
 ```
 
 ### Local model
@@ -97,7 +131,7 @@ There are four options:
 
 | `acc init --local …` | Runs | Needs |
 | --- | --- | --- |
-| `tiny` | a small ONNX model in-process, as a classifier | the `tiny` extra (onnxruntime, ~35 MB) |
+| `tiny` | a small ONNX model in-process, as a classifier | `onnxruntime-node` and `@huggingface/tokenizers` |
 | `cpu` (default) | a small chat model in llama.cpp's `llama-server`, on the CPU | `llama-server` (any build) |
 | `gpu` | a larger chat model in `llama-server`, on the GPU | a GPU build: Vulkan (AMD, Intel), CUDA or ROCm |
 | `judge` | a yes/no judge model (Granite Guardian 4.1 8B) in `llama-server`, on the GPU | a GPU build, ~5 GB of model |
@@ -107,7 +141,7 @@ acc init --local gpu   # sets run.backend and the backend's model in .acc/config
 acc doctor             # loads the model (downloading it on first use) and makes a test call
 ```
 
-`run.backend` overrides the `claude` and `omp` backends for every agent. An
+`run.backend` overrides the `claude`, `omp` and `pi` backends for every agent. An
 `[agents.<name>] backend` entry still wins for that agent. Running `acc init --local` again with
 another option switches the project to it.
 
@@ -150,9 +184,10 @@ server = "~/.local/bin/llama-server"
 ```
 
 **tiny.** The `tiny` backend runs an ONNX export of a ChatML model (SmolLM2, Qwen2.5, Qwen3) with
-onnxruntime, in the acc process, with no server. Install acc with the extra:
-`uv tool install 'agent-commit-checks[mcp,tiny] @ /path/to/agent-commit-checks'`. The model files
-are downloaded from Hugging Face into `~/.cache/acc/models` on first use.
+onnxruntime, in the acc process, with no server. acc does not install its two packages by
+default; add them where acc's package can import them, e.g. next to a global acc:
+`npm install -g onnxruntime-node @huggingface/tokenizers`. The model files are downloaded from
+Hugging Face into `~/.cache/acc/models` on first use.
 
 ```toml
 [backends.tiny]
@@ -216,7 +251,7 @@ range. `--range A..B` grades that range as one unit, and can be repeated to grad
 ranges. `--commits` grades each listed commit as its own one-commit range. `expect_fail` entries
 may be commits or `A..B` ranges. Excluded units are listed with a reason (no matching path, empty
 diff, secret-scan hit, holds the commit that added the check, no commits in range). The grade
-records how its sample was chosen. The MCP `promote_check` tool needs an automatic grade to
+records how its sample was chosen. The `promote_check` tool needs an automatic grade to
 reach `active`, so an agent cannot hand-pick easy commits. `acc promote` accepts either kind.
 `grading.min_sample` counts ranges, so a grade on fewer ranges is `insufficient`. A
 low-confidence block counts as a warning in the block rate. The grade reports how many there
@@ -227,12 +262,14 @@ were, and records each unit's confidence.
 | Command | Purpose |
 | --- | --- |
 | `acc gate --agent claude` | PreToolUse hook: reads the payload on stdin, prints hook JSON |
-| `acc gate --agent omp --cwd DIR --command CMD` | omp extension: prints `{verdict, reason, context, message}` |
 | `acc run [--check id] [--range unpushed\|A..B] [--json]` | run checks on demand (exit 0 pass, 1 warn, 2 block, 3 error) |
 | `acc grade <id> [--sample N] [--commits REV... \| --range A..B ...]` | grade against history (or chosen commits or ranges), write `.acc/grades/<id>.json` |
 | `acc list`, `acc validate [file]` | inspect and schema-check checks |
 | `acc promote <id> [--to advisory\|active] [--force]` | change status |
-| `acc init [--omp] [--local]`, `acc doctor [--agent omp]`, `acc mcp [--agent omp]` | setup (`--local`: run checks on a local model), diagnostics, MCP server |
+| `acc init [--omp\|--pi] [--local]`, `acc doctor [--agent omp\|pi]`, `acc mcp` | setup (`--local`: run checks on a local model), diagnostics, MCP server |
+
+In omp and pi, `/acc <command>` runs these in the session's project, with `--agent` set to the
+agent (`gate` and `mcp` read stdin and only run from a shell).
 
 Logs: `~/.local/share/acc/logs/YYYY/MM/DD/events.jsonl` (override with `ACC_LOG_DIR`). The log
 holds hashes and sizes only, never diff text or secrets.
@@ -263,8 +300,13 @@ holds hashes and sizes only, never diff text or secrets.
   own, shared a prompt, each answer depended on the others: on this repo's history, Haiku judged
   `ddc489c` one way in 3 of 3 batched runs and the other way in 3 of 3 runs alone. A grade makes
   one call per sampled range, plus one per rerun.
-- The omp extension ships inside the package (`src/acc/adapters/omp/acc.ts`), not in a
-  top-level `adapters/`, so an installed `acc` can copy it.
+- acc was first written in Python and ported to TypeScript, so one package serves the CLI and
+  both extensions. The extensions import the gate and run it in the agent's process; nothing is
+  copied or configured with an `acc` path. `package.json` declares both manifests:
+  `omp.extensions` (`src/adapters/omp`) and `pi.extensions` (`src/adapters/pi`). omp prefers its
+  own key, so each agent loads its own adapter.
+- Grades written by the Python version stay valid: the check hash is unchanged. A grade's
+  random sample is drawn differently, so re-grading picks other `random` units than before.
 - The `omp -p` call adds `--no-extensions`, `--no-skills`, `--no-rules`, `--no-context-files`,
   `--no-lsp`, `--no-title`, `--thinking off` and `--system-prompt` to the handoff's flags.
   `--no-extensions` keeps this extension out of the spawned run, so the gate cannot recurse.
@@ -279,19 +321,28 @@ holds hashes and sizes only, never diff text or secrets.
 - `omp -p` puts piped stdin before the prompt, separated by a blank line. If `@decision` is
   not defined, omp exits 1 with `Model "@decision" not found` and does not fall back to another
   model. The backend error tells you which `modelRoles` entry to add.
-- omp's `pi.exec(command, args, {cwd, timeout, signal})` runs the command without a shell and
-  returns `{stdout, stderr, code, killed}`. The extension resolves the `bash` tool's optional
-  `cwd` input against the session directory and passes the result to `acc gate --cwd`.
+- The omp extension resolves the `bash` tool's optional `cwd` input against the session
+  directory and gates the push there.
+- The `pi -p` call uses `--no-session`, `--no-tools`, `--no-extensions`, `--no-skills`,
+  `--no-prompt-templates`, `--no-themes`, `--no-context-files`, `--no-mcp`, `--offline` and
+  `--thinking off`. Like omp, it has no schema flag and puts piped stdin with the prompt. Provider
+  errors arrive as JSON inside the error message; the backend reports the provider's own message.
+  A gate run with Gemini 3.1 Flash Lite took 1.2 s.
 - Secret patterns are ported from [dev-decisions](https://github.com/adelvillar1/dev-decisions)
-  (Apache-2.0); see `src/acc/secrets.py`.
+  (Apache-2.0); see `src/secrets.ts`.
 
 ## Development
 
 ```sh
-uv sync
-uv run pytest
+bun install
+bun test
+bunx tsc -p .
 ```
 
-Tests use `backend = "fake"` (`[agents.claude] backend = "fake"`, answers from a JSON file)
-and throwaway repos with a local bare remote. `tests/test_omp_extension.py` loads the omp
-extension under [bun](https://bun.sh) and is skipped when `bun` is not on `PATH`.
+The source is TypeScript that runs unbuilt: Bun runs it directly (omp is built on Bun), and
+Node loads it through [jiti](https://github.com/unjs/jiti) (pi, and `bin/acc.mjs` under Node).
+Tests use `backend = "fake"` (`[agents.claude] backend = "fake"`, answers from a JSON file) and
+throwaway repos with a local bare remote. `tests/extensions.test.ts` loads both extensions against
+a stand-in host API.
+
+To try a checkout in an agent: `omp install .` links it into omp, and `pi install .` adds it to pi.
