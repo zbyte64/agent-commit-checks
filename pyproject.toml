@@ -11,6 +11,8 @@ dependencies = [
 
 [project.optional-dependencies]
 mcp = ["mcp>=2.3"]
+# The `tiny` backend: a small ONNX model run in-process, without llama.cpp.
+tiny = ["onnxruntime>=1.20", "tokenizers>=0.20", "numpy>=1.26"]
 
 [project.scripts]
 acc = "acc.cli:main"

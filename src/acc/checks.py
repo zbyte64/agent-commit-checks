@@ -306,6 +306,9 @@ def validate_entry(check: Check, entry: Any) -> tuple[str, list[dict], str, floa
         raise AnswerError("answer entry is not an object")
     verdict = map_verdict(check, entry.get("answer"))
     confidence = entry.get("confidence")
+    if entry.get("answer_probs"):
+        # Measured by the backend: the probability the model gave to answers with this verdict.
+        confidence = verdict_probability(check, entry["answer_probs"], verdict)
     if isinstance(confidence, bool) or not isinstance(confidence, (int, float)) or not 0 <= confidence <= 1:
         raise AnswerError(f"expected a confidence 0-1, got {confidence!r}")
     findings = entry.get("findings", [])
@@ -317,6 +320,17 @@ def validate_entry(check: Check, entry: Any) -> tuple[str, list[dict], str, floa
             clean.append({k: f[k] for k in ("file", "line", "message") if k in f})
     summary = entry.get("summary", "")
     return verdict, clean, summary if isinstance(summary, str) else "", float(confidence)
+
+
+def verdict_probability(check: Check, answer_probs: list, verdict: str) -> float:
+    total = 0.0
+    for value, p in answer_probs:
+        try:
+            same = map_verdict(check, value) == verdict
+        except AnswerError:
+            same = False
+        total += p if same else 0.0
+    return min(1.0, total)
 
 
 def worst(verdicts: list[str]) -> str:

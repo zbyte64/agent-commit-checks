@@ -20,10 +20,15 @@ DEFAULTS: dict[str, Any] = {
     "backends": {
         "claude": {"command": "claude", "model": "haiku"},
         "omp": {"command": "omp", "model": "@decision"},
+        # Defaults for the local backends live in backends/local.py, judge.py and tiny.py.
+        "local": {},
+        "judge": {},
+        "tiny": {},
         "fake": {"answers": ""},
     },
     "agents": {},
     "run": {
+        "backend": "",
         "max_diff_chars": 12000,
         "timeout_seconds": 90,
         "parallel": 4,
@@ -93,8 +98,9 @@ class Config:
         return self.data["grading"]
 
     def backend_for(self, agent: str) -> str:
-        """Backend name for an agent: `[agents.<name>] backend`, else the agent's own CLI."""
-        return self.data.get("agents", {}).get(agent, {}).get("backend", agent)
+        """Backend name for an agent: `[agents.<name>] backend`, else `run.backend` (which
+        overrides every agent's own CLI, e.g. with a local model), else the agent's own CLI."""
+        return self.data.get("agents", {}).get(agent, {}).get("backend") or self.run["backend"] or agent
 
     def backend_settings(self, name: str) -> dict:
         return self.data.get("backends", {}).get(name, {})
@@ -122,8 +128,9 @@ def load_config(root: Path) -> Config:
             raise ConfigError(f"{path}: {e}") from e
     cfg = Config(root=root, data=_merge(DEFAULTS, data))
     for backend in cfg.data["backends"].values():
-        if isinstance(backend.get("command"), str):
-            backend["command"] = expand_path(backend["command"])
+        for key in ("command", "server"):
+            if isinstance(backend.get(key), str):
+                backend[key] = expand_path(backend[key])
     if cfg.run["on_backend_error"] not in ("warn", "block"):
         raise ConfigError("run.on_backend_error must be 'warn' or 'block'")
     mbc = cfg.run["min_block_confidence"]

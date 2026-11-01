@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -14,6 +15,12 @@ from pathlib import Path
 from . import checks as checks_mod
 from . import grading, omp_setup, ops
 from .backends import BackendError, get_backend
+from .backends.judge import RECOMMENDED_MODELS as JUDGE_MODELS
+from .backends.judge import JudgeBackend
+from .backends.local import DEFAULT_URL, RECOMMENDED_MODELS, LocalBackend, list_devices, server_log
+from .backends.tiny import DEFAULT_FILE as TINY_FILE
+from .backends.tiny import RECOMMENDED_MODEL as TINY_MODEL
+from .backends.tiny import TinyBackend
 from .checks import CheckError
 from .config import ConfigError, home_relative, load_config
 from .gate import format_result, run_claude_hook, run_omp_gate
@@ -173,6 +180,7 @@ def cmd_init(a: argparse.Namespace) -> int:
     tpl = resources.files("acc") / "templates"
     claude = shutil.which("claude")
     omp = shutil.which("omp")
+    llama = shutil.which("llama-server")
     created = []
     (acc_dir / "checks").mkdir(parents=True, exist_ok=True)
     (acc_dir / "grades").mkdir(parents=True, exist_ok=True)
@@ -188,7 +196,9 @@ def cmd_init(a: argparse.Namespace) -> int:
             return home_relative(str(Path(found).absolute())) if found else name
 
         cfg_path.write_text(text.replace("__CLAUDE__", launcher(claude, "claude"))
-                            .replace("__OMP__", launcher(omp, "omp")))
+                            .replace("__OMP__", launcher(omp, "omp"))
+                            .replace("__LLAMA_SERVER__", launcher(llama, "llama-server"))
+                            .replace("__LOCAL_MODEL__", RECOMMENDED_MODELS["cpu"]))
         created.append(cfg_path)
     for name in ("no-debug-leftovers.toml", "commit-message-matches-diff.toml"):
         dest = acc_dir / "checks" / name
@@ -199,6 +209,8 @@ def cmd_init(a: argparse.Namespace) -> int:
         print(f"created {p.relative_to(root)}")
     if not created:
         print(".acc/ already set up; nothing created.")
+    if a.local:
+        _init_local(cfg_path, a.local, llama)
     if a.omp:
         return _init_omp(root)
     if not claude:
@@ -207,6 +219,75 @@ def cmd_init(a: argparse.Namespace) -> int:
     print(_snippets(_acc_path()))
     print("For oh-my-pi, run `acc init --omp`.")
     return 0
+
+
+def set_keys(text: str, table: str, values: dict[str, str], defaults: dict[str, str] | None = None) -> str:
+    """Config text with `key = value` lines (values are TOML literals) set in `[table]`, which is
+    added if missing. A commented-out `# key = ...` line is replaced. `defaults` are set only
+    when the table has no such key."""
+    head = re.search(rf"^\[{re.escape(table)}\]$", text, re.M)
+    if not head:
+        lines = [f"{k} = {v}" for k, v in {**(defaults or {}), **values}.items()]
+        return text.rstrip("\n") + ("\n\n" if text.strip() else "") + f"[{table}]\n" + "\n".join(lines) + "\n"
+    # Only this table: other tables (e.g. [agents.*]) may have keys with the same names.
+    end = re.search(r"^\[", text[head.end():], re.M)
+    stop = head.end() + end.start() if end else len(text)
+    body = text[head.end():stop]
+    for key, value in values.items():
+        body, n = re.subn(rf"^#? *{key} *=.*$", f"{key} = {value}", body, count=1, flags=re.M)
+        if not n:
+            body = f"\n{key} = {value}" + body
+    for key, value in (defaults or {}).items():
+        if not re.search(rf"^ *{key} *=", body, re.M):
+            body = f"\n{key} = {value}" + body
+    return text[:head.end()] + body + text[stop:]
+
+
+LOCAL_PRESETS = ("cpu", "gpu", "judge", "tiny")
+
+
+def enable_local(text: str, preset: str, server: str) -> str:
+    """Config text that runs every check on a local model: a chat model in llama-server on the `cpu`
+    or `gpu`, a `judge` model in llama-server on the GPU, or the `tiny` in-process classifier."""
+    q = json.dumps
+    if preset == "tiny":
+        text = set_keys(text, "backends.tiny", {"model": q(TINY_MODEL), "file": q(TINY_FILE)})
+        return set_keys(text, "run", {"backend": q("tiny")})
+    if preset == "judge":
+        text = set_keys(text, "backends.judge", {"format": q("guardian"), "model": q(JUDGE_MODELS["guardian"])},
+                        defaults={"url": q(DEFAULT_URL), "device": q("gpu"), "server": q(server)})
+        return set_keys(text, "run", {"backend": q("judge")})
+    text = set_keys(text, "backends.local", {"device": q(preset), "model": q(RECOMMENDED_MODELS[preset])},
+                    defaults={"url": q(DEFAULT_URL), "server": q(server)})
+    return set_keys(text, "run", {"backend": q("local")})
+
+
+def _init_local(cfg_path: Path, preset: str, llama: str | None) -> None:
+    server = home_relative(str(Path(llama).absolute())) if llama else "llama-server"
+    cfg_path.write_text(enable_local(cfg_path.read_text(), preset, server))
+    backend = preset if preset in ("tiny", "judge") else "local"
+    print(f'set run.backend = "{backend}" in {cfg_path.name}: every agent now uses the local {preset} model')
+    if preset == "tiny":
+        try:
+            import onnxruntime  # noqa: F401
+            import tokenizers  # noqa: F401
+        except ImportError:
+            print("warning: the tiny backend needs the optional extra: reinstall with "
+                  "`uv tool install 'agent-commit-checks[mcp,tiny] @ /path/to/agent-commit-checks'`.")
+        print("Run `acc doctor` once: it downloads the model into ~/.cache/acc/models.")
+        return
+    if not llama:
+        print("warning: `llama-server` not found on PATH. Install llama.cpp "
+              "(https://github.com/ggml-org/llama.cpp/releases), then set backends.local.server "
+              "to its absolute path.")
+    elif preset in ("gpu", "judge"):
+        devices = list_devices(llama)
+        if devices:
+            print(f"llama-server sees: {', '.join(devices)}")
+        else:
+            print("warning: this llama-server build sees no GPU. Install a GPU build (Vulkan for AMD or "
+                  "Intel, CUDA for NVIDIA, or ROCm) from https://github.com/ggml-org/llama.cpp/releases.")
+    print("Run `acc doctor` once: it starts llama-server, which downloads the model on first use.")
 
 
 def _init_omp(root: Path) -> int:
@@ -287,6 +368,34 @@ def cmd_doctor(a: argparse.Namespace) -> int:
             report(bool(v) and v >= MIN_HOOK_VERSION,
                    f"Claude Code {ver or '?'}; hook `args`/`if`/`onFailure` need "
                    f"{'.'.join(map(str, MIN_HOOK_VERSION))}+", warn_only=True)
+    elif name in ("local", "judge"):
+        local = (LocalBackend if name == "local" else JudgeBackend)(cfg.backend_settings(name))
+        up = local.ready()
+        report(up, f"model server at {local.url} " + (
+            "is ready" if up else "is not running" + (" (acc will start it)" if local.server else "")),
+            warn_only=bool(local.server))
+        if up:
+            try:
+                local.check_model()
+                report(True, f"server serves {local.model}")
+            except BackendError as e:
+                report(False, str(e))
+        binary_path = local.server and (local.server if os.path.isabs(local.server) else shutil.which(local.server))
+        if not up and local.server:
+            report(bool(binary_path), f"llama-server binary: {binary_path or local.server}")
+            report(True, f"model {local.model} on {local.device}; server log {server_log()}")
+        if local.device == "gpu" and binary_path:
+            devices = list_devices(binary_path)
+            report(bool(devices), f"llama-server GPUs: {', '.join(devices)}" if devices else
+                   "llama-server sees no GPU: install a Vulkan, CUDA or ROCm build of llama.cpp")
+    elif name == "tiny":
+        try:
+            import onnxruntime
+            report(True, f"onnxruntime {onnxruntime.__version__}")
+        except ImportError:
+            report(False, "onnxruntime is not installed: install agent-commit-checks[tiny]")
+        tiny = TinyBackend(cfg.backend_settings("tiny"))
+        report(True, f"model {tiny.model} ({tiny.file})")
     elif name == "omp":
         path = binary("omp")
         model = cfg.backend_settings("omp")["model"]
@@ -402,6 +511,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--omp", action="store_true",
                     help="set up omp instead of Claude Code: install the extension in "
                          "~/.omp/agent/extensions and print the omp setup")
+    sp.add_argument("--local", nargs="?", const="cpu", choices=LOCAL_PRESETS,
+                    help="run every check on a local model instead of the agent's own: cpu (default) "
+                         "or gpu run a chat model in llama-server, judge runs a yes/no judge model "
+                         "(Granite Guardian) in llama-server on the GPU, tiny runs a small ONNX "
+                         "classifier in-process")
     sp.set_defaults(fn=cmd_init)
 
     sp = sub.add_parser("doctor", help="verify backend, auth, config and check files")
