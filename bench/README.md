@@ -1,7 +1,7 @@
 # Decision model benchmark
 
 How well each model behind acc's backends answers this repo's own checks. The cases come from
-this repo's history, so they look like the pushes acc reviews. [decision_models.py](decision_models.py)
+this repo's history, so they look like the pushes acc reviews. [decision-models.ts](decision-models.ts)
 builds them and runs every model through the same runner as the gate:
 
 - **Messages** (`commit-message-matches-diff`): 10 commits as they are, and the same 10 diffs with
@@ -92,15 +92,20 @@ timeout. For `tiny`, SmolLM2-360M blocks the fewest real commits.
 ## Re-running
 
 ```sh
-uv run python bench/decision_models.py claude haiku --rev 6befd26 --out bench/results/claude-haiku.json
-uv run python bench/decision_models.py gpu Qwen/Qwen3-4B-GGUF:Q8_0 --rev 6befd26 \
+bun bench/decision-models.ts claude haiku --rev 6befd26 --out bench/results/claude-haiku.json
+bun bench/decision-models.ts gpu Qwen/Qwen3-4B-GGUF:Q8_0 --rev 6befd26 \
     --server ~/.local/opt/llama.cpp/vulkan/llama-b12017/llama-server --out bench/results/gpu-qwen3-4b-gguf.json
-uv run python bench/decision_models.py judge ibm-granite/granite-guardian-4.1-8b-GGUF:Q4_K_M --format guardian \
+bun bench/decision-models.ts judge ibm-granite/granite-guardian-4.1-8b-GGUF:Q4_K_M --format guardian \
     --rev 6befd26 --out bench/results/judge-granite-guardian-4.1-8b.json
-uv sync --extra tiny
-uv run python bench/decision_models.py tiny HuggingFaceTB/SmolLM2-360M-Instruct:onnx/model_int8.onnx \
+bun bench/decision-models.ts tiny HuggingFaceTB/SmolLM2-360M-Instruct:onnx/model_int8.onnx \
     --rev 6befd26 --out bench/results/tiny-smollm2-360m-instruct.json
-uv run python bench/report.py
+bun bench/report.ts
 ```
 
-`--rev 6befd26` rebuilds the same 52 cases. A later rev gives cases from newer history.
+The `tiny` kind needs `onnxruntime-node` and `@huggingface/tokenizers`, which `bun install`
+adds for development. `--rev 6befd26` rebuilds the same 52 cases, and the check files are read
+at that rev too. A later rev gives cases from newer history.
+
+The results were recorded with the Python version of acc. The TypeScript port gives the same
+verdict on all 52 cases for SmolLM2-135M; `bool` answers move by up to 0.12 between runs of
+either version, because each prompt's data blocks carry a random tag.
