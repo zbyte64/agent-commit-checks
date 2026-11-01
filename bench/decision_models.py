@@ -18,6 +18,7 @@ landed, but a check may still have a fair point about one of them.
 usage (from the repo root, with the `tiny` extra for tiny):
   uv run python bench/decision_models.py KIND MODEL --rev 6befd26 --out bench/results/NAME.json
   KIND is claude (MODEL e.g. haiku), cpu or gpu (llama-server, MODEL a GGUF repo:quant),
+  judge (a yes/no judge model in llama-server on the GPU, with --format guardian or selene),
   or tiny (MODEL is repo:file of an ONNX model).
 """
 
@@ -86,7 +87,7 @@ def machine() -> str:
     return platform.machine()
 
 
-def make_backend(kind: str, model: str, port: int, server: str):
+def make_backend(kind: str, model: str, port: int, server: str, fmt: str):
     if kind == "claude":
         from acc.backends.claude import ClaudeBackend
 
@@ -96,6 +97,11 @@ def make_backend(kind: str, model: str, port: int, server: str):
 
         repo, file = model.split(":", 1)
         return TinyBackend({"model": repo, "file": file})
+    if kind == "judge":
+        from acc.backends.judge import JudgeBackend
+
+        return JudgeBackend({"url": f"http://127.0.0.1:{port}", "model": model, "format": fmt,
+                             "server": os.path.expanduser(server), "startup_seconds": 1800})
     from acc.backends.local import LocalBackend
 
     return LocalBackend({"url": f"http://127.0.0.1:{port}", "model": model, "device": kind,
@@ -104,11 +110,12 @@ def make_backend(kind: str, model: str, port: int, server: str):
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("kind", choices=["claude", "cpu", "gpu", "tiny"])
+    ap.add_argument("kind", choices=["claude", "cpu", "gpu", "judge", "tiny"])
     ap.add_argument("model")
     ap.add_argument("--rev", default="HEAD")
     ap.add_argument("--port", type=int, default=8790)
     ap.add_argument("--server", default="~/.local/bin/llama-server")
+    ap.add_argument("--format", default="guardian", help="judge: guardian or selene")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
 
@@ -117,11 +124,11 @@ def main() -> None:
     cfg.run["timeout_seconds"] = 120
     found = {c: checks.load_file(ROOT / f".acc/checks/{c}.toml") for c in CHECKS}
     cases, batch_ctx = build_cases(cfg, a.rev)
-    backend = make_backend(a.kind, a.model, a.port, a.server)
+    backend = make_backend(a.kind, a.model, a.port, a.server, a.format)
     t0 = time.monotonic()
     if a.kind == "tiny":
         backend.load()
-    elif a.kind in ("cpu", "gpu"):
+    elif a.kind in ("cpu", "gpu", "judge"):
         backend.ensure_server()
     startup = time.monotonic() - t0
     rows = []
@@ -139,10 +146,11 @@ def main() -> None:
         batched = {"seconds": round(time.monotonic() - t, 2), "calls": calls,
                    "results": [(r.key, r.raw_verdict, r.error) for r in res]}
     finally:
-        if a.kind in ("cpu", "gpu"):
+        if a.kind in ("cpu", "gpu", "judge"):
             subprocess.run(["pkill", "-f", "--", f"llama-server.*--port {a.port}"])
     Path(a.out).write_text(json.dumps({
-        "kind": a.kind, "model": a.model, "rev": g.git(ROOT, "rev-parse", "--short", a.rev).strip(),
+        "kind": a.kind, "model": a.model + (f" ({a.format})" if a.kind == "judge" else ""),
+        "rev": g.git(ROOT, "rev-parse", "--short", a.rev).strip(),
         "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "machine": machine(),
         "startup_seconds": round(startup, 1), "rows": rows, "batched": batched}, indent=1) + "\n")
 

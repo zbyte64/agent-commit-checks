@@ -165,14 +165,16 @@ its next-token probabilities over the possible answers: `yes` or `no` for a `boo
 answer is P(yes), and the option numbers for a `choice` or `score` check. Confidence is the
 probability of the verdict. It reports no findings, and its summary lists the probabilities.
 
-**How good are they?** Not good enough to gate pushes. On 52 cases from this repo's history
-([bench/README.md](bench/README.md)), Haiku passed 25 of 26 real commits and caught 25 of 26
-altered ones (a swapped message, tests removed, or a debug print added). The best local model,
-Qwen3-4B on the GPU (the `gpu` preset, 12 s a call), passed 24 and caught 9: every commit with its
-tests removed, but no swapped message and only 1 of 8 debug prints. The `cpu` (Qwen3-0.6B, 12 s)
-and `tiny` (SmolLM2-360M, 4 s) presets passed 20 and 22 and caught 5 and 2. Their measured
-confidence is as high on wrong verdicts as on right ones. Use a local model where the diff must
-not leave the machine, and keep its checks `advisory`.
+**How good are they?** On 52 cases from this repo's history ([bench/README.md](bench/README.md)),
+Haiku passed 25 of 26 real commits and caught 25 of 26 altered ones (a swapped message, tests
+removed, or a debug print added). The `judge` preset (Granite Guardian, 15 s a check) passed 23
+and caught 15: on the tests and debug checks it was close to Haiku, and both of its blocks on
+real commits had confidence below 0.7, so they would only warn. Like every local model, it could
+not tell a swapped commit message from the real one. The chat models did worse: the `gpu`
+preset (Qwen3-4B, 12 s) passed 24 and caught 9, and the `cpu` (Qwen3-0.6B, 12 s) and `tiny`
+(SmolLM2-360M, 4 s) presets passed 20 and 22 and caught 5 and 2, with confidence as high on
+wrong verdicts as on right ones. Use `judge` where the diff must not leave the machine, and keep
+checks it cannot judge, like commit messages, `advisory`.
 
 ## Check files
 

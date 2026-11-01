@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 CHECKS = ("commit-message-matches-diff", "src-changes-have-tests", "no-debug-leftovers")
-KIND_ORDER = {"claude": 0, "gpu": 1, "cpu": 2, "tiny": 3}
+KIND_ORDER = {"claude": 0, "judge": 1, "gpu": 2, "cpu": 3, "tiny": 4}
 
 
 def caught(r: dict) -> bool:
@@ -38,7 +38,7 @@ def main() -> None:
     results = [json.loads(p.read_text()) for p in sorted(Path(sys.argv[1] if len(sys.argv) > 1 else
                                                               Path(__file__).parent / "results").glob("*.json"))]
     results.sort(key=lambda d: (KIND_ORDER.get(d["kind"], 9), d["model"]))
-    print("Real commits passed · altered commits caught (26 each, 52 calls per model).\n")
+    print("Real commits passed · altered commits caught (26 each, 52 cases per model).\n")
     print("| Kind | Model | All | Messages | Tests | Debug | Errors | Confidence right / wrong | "
           "Median s | Max s | Load s |")
     print("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
