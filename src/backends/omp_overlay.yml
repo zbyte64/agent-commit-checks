@@ -1,0 +1,6 @@
+# Config overlay for acc's `omp -p` calls (passed with --config).
+# With a memory backend on, omp retains each call's prompt (the diff under review) and
+# recalls it into later calls in the same repo, so a re-run after a fix can be judged
+# on the old diff. Review calls must neither store nor recall anything.
+memory:
+  backend: off

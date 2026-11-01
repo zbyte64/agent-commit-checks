@@ -1,0 +1,32 @@
+{
+  "name": "agent-commit-checks",
+  "version": "0.1.0",
+  "description": "Model-backed checks on the commits a coding agent is about to push",
+  "license": "Apache-2.0",
+  "type": "module",
+  "keywords": [
+    "git",
+    "pre-push",
+    "code-review"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "src/",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "smol-toml": "^1.3.1"
+  },
+  "devDependencies": {
+    "@huggingface/tokenizers": "^0.2.0",
+    "@types/bun": "^1.2.0",
+    "onnxruntime-node": "^1.31.1",
+    "typescript": "^5.8.0"
+  }
+}
