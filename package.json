@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "description": "Model-backed checks on the commits a coding agent is about to push",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zbyte64/agent-commit-checks.git"
+  },
+  "homepage": "https://github.com/zbyte64/agent-commit-checks#readme",
+  "bugs": {
+    "url": "https://github.com/zbyte64/agent-commit-checks/issues"
+  },
   "type": "module",
   "keywords": [
     "pi-package",
@@ -16,7 +24,7 @@
     "node": ">=22"
   },
   "bin": {
-    "acc": "./bin/acc"
+    "acc": "bin/acc"
   },
   "files": [
     "bin/",
