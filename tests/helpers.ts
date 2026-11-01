@@ -1,7 +1,7 @@
 /** Test fixtures: throwaway repos with a bare `origin`, fake-backend answers, check files. */
 import { afterEach, beforeEach } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { BackendError } from "../src/backends/base.ts";
@@ -93,7 +93,8 @@ export function useTmp(): () => string {
 	let tmp = "";
 	let saved: Record<string, string | undefined> = {};
 	beforeEach(() => {
-		tmp = mkdtempSync(join(tmpdir(), "acc-test-"));
+		// Resolved, as git reports paths: on macOS the temp dir is under /var, a symlink to /private/var.
+		tmp = realpathSync(mkdtempSync(join(tmpdir(), "acc-test-")));
 		saved = { ACC_LOG_DIR: process.env.ACC_LOG_DIR, ACC_FAKE_ANSWERS: process.env.ACC_FAKE_ANSWERS };
 		process.env.ACC_LOG_DIR = join(tmp, "logs");
 		delete process.env.ACC_FAKE_ANSWERS;
