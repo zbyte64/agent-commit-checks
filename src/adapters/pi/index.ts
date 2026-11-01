@@ -1,5 +1,5 @@
 /**
- * agent-commit-checks for pi (https://pi.dev). Install with `pi install git:github.com/zbyte64/agent-commit-checks`.
+ * agent-commit-checks for pi (https://pi.dev). Install with `pi install npm:agent-commit-checks`.
  *
  * - Gates `git push` in the bash tool: the checks run in-process before the command does.
  *   block -> the push does not run and the findings go back to the model as the tool error.

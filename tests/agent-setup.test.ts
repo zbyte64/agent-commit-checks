@@ -41,7 +41,7 @@ function agentEnv() {
 		write("omp", `if [ "$1" = plugin ]; then echo '${plugins}'; exit 0; fi\ncase "$3" in\n${cases}  *) exit 1 ;;\nesac\n`);
 	};
 	const pi = (installed: boolean): void => {
-		write("pi", installed ? `echo "User packages:\n  git:github.com/zbyte64/agent-commit-checks\n    agent-commit-checks"` : 'echo "No packages installed."');
+		write("pi", installed ? `echo "User packages:\n  npm:agent-commit-checks\n    agent-commit-checks"` : 'echo "No packages installed."');
 	};
 	omp({});
 	pi(false);
@@ -56,7 +56,7 @@ test("init --omp explains the install, the role and the extension", async () => 
 	const config = repo.read(".acc/config.toml");
 	expect(config).toContain('command = "~/.local/bin/omp"');
 	expect(config).toContain('model = "@decision"');
-	expect(io.text()).toContain("omp install git:github.com/zbyte64/agent-commit-checks");
+	expect(io.text()).toContain("omp install npm:agent-commit-checks");
 	expect(io.text()).toContain("modelRoles:\n  decision:");
 	expect(io.text()).not.toContain("PreToolUse");
 
@@ -112,7 +112,7 @@ test("init --pi and doctor --agent pi", async () => {
 	let io = captureIo(repo.path);
 	expect(await main(["init", "--pi"], io)).toBe(0);
 	expect(repo.read(".acc/config.toml")).toContain('command = "~/.local/bin/pi"');
-	expect(io.text()).toContain("pi install git:github.com/zbyte64/agent-commit-checks");
+	expect(io.text()).toContain("pi install npm:agent-commit-checks");
 	expect(io.text()).toContain('backends.pi.model = "anthropic/claude-haiku-4-5"');
 
 	io = captureIo(repo.path);

@@ -6,8 +6,8 @@ import { run } from "./proc.ts";
 
 /** The npm package name, which both omp and pi list once the package is installed. */
 export const PACKAGE_NAME = "agent-commit-checks";
-/** What users install: the git repository (omp and pi both accept this form). */
-export const PACKAGE_SOURCE = "git:github.com/zbyte64/agent-commit-checks";
+/** What users install: the npm package (omp and pi both accept this form). */
+export const PACKAGE_SOURCE = "npm:agent-commit-checks";
 
 async function capture(cmd: string, args: string[], cwd: string): Promise<string | null> {
 	try {
