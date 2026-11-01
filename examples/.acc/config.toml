@@ -11,6 +11,10 @@ model = "haiku"
 command = "~/.bun/bin/omp"
 model = "@decision"        # omp role alias: set modelRoles.decision in ~/.omp/agent/config.yml
 
+[backends.pi]
+command = "~/.local/bin/pi"
+model = "anthropic/claude-haiku-4-5"  # provider/model; pi has no model roles
+
 # Each agent uses its own CLI by default. Route an agent to a different backend,
 # e.g. the fake backend in tests:
 # [agents.claude]
