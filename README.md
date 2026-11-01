@@ -137,7 +137,7 @@ backend error counts as `run.on_backend_error`, by default `block`.
 
 ## Check files
 
-Each check is `.acc/checks/<id>.toml`. [examples/.acc/checks](examples/.acc/checks) has one of
+Each check is `.acc/checks/<id>.toml`. [examples/.acc/checks](https://github.com/zbyte64/agent-commit-checks/tree/main/examples/.acc/checks) has one of
 each question type. This one blocks a push that adds debugging code:
 
 ```toml
@@ -244,7 +244,7 @@ acc starts `llama-server` itself when nothing answers at `backends.local.url` (o
 `server` to its path. Any OpenAI-compatible server with `json_schema` response formats works too,
 e.g. Ollama: `url = "http://127.0.0.1:11434"`, an Ollama tag as `model`, and `server = ""`.
 
-**Which to use.** On 52 cases from this repo's history ([bench/README.md](bench/README.md)), Haiku
+**Which to use.** On 52 cases from this repo's history ([bench/README.md](https://github.com/zbyte64/agent-commit-checks/blob/main/bench/README.md)), Haiku
 passed 25 of 26 good commits and caught 25 of 26 bad ones. `judge` passed 23 and caught 15: close
 to Haiku on debug code and missing tests, but no local model could tell a swapped commit message
 from the real one. `gpu`, `cpu` and `tiny` caught 9, 5 and 2. Use `judge` where the diff must not
