@@ -1,6 +1,6 @@
 {
   "name": "agent-commit-checks",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Model-backed checks on the commits a coding agent is about to push",
   "license": "Apache-2.0",
   "repository": {
@@ -29,7 +29,9 @@
   "files": [
     "bin/",
     "src/",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "omp": {
     "extensions": [
