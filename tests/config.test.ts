@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
+import { delimiter, join } from "node:path";
+import { main } from "../src/cli.ts";
 import { ConfigError, homeRelative, loadConfig } from "../src/config.ts";
-import { useTmp } from "./helpers.ts";
+import { captureIo, makeRepo, useTmp } from "./helpers.ts";
 
 const tmp = useTmp();
 
@@ -41,6 +42,25 @@ describe("config", () => {
 		expect(homeRelative("/home/someone/.local/bin/claude")).toBe("~/.local/bin/claude");
 		expect(homeRelative("/home/someoneelse/bin/claude")).toBe("/home/someoneelse/bin/claude");
 		expect(homeRelative("/usr/bin/claude")).toBe("/usr/bin/claude");
+	});
+
+	test("init writes a home-relative path", async () => {
+		const repo = makeRepo(tmp());
+		const home = join(tmp(), "home");
+		const bindir = join(home, ".local/bin");
+		mkdirSync(bindir, { recursive: true });
+		const claude = join(bindir, "claude");
+		writeFileSync(claude, "#!/bin/sh\necho '9.9.9 (Claude Code)'\n");
+		chmodSync(claude, 0o755);
+		process.env.HOME = home;
+		process.env.PATH = `${bindir}${delimiter}${process.env.PATH}`;
+		expect(await main(["init"], captureIo(repo.path))).toBe(0);
+		const text = repo.read(".acc/config.toml");
+		expect(text).toContain('command = "~/.local/bin/claude"');
+		expect(text).not.toContain(home);
+		const io = captureIo(repo.path);
+		expect(await main(["doctor", "--offline"], io)).toBe(0);
+		expect(io.text()).toContain(`[ok  ] backends.claude.command is absolute: ${claude}`);
 	});
 
 	test("min_block_confidence is validated", () => {

@@ -1,9 +1,17 @@
 /** The judge backend against a stand-in llama-server that returns token probabilities. */
 import { afterEach, expect, test } from "bun:test";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { BackendError } from "../src/backends/base.ts";
+import { getBackend } from "../src/backends/index.ts";
 import { criteria, JudgeBackend, pYes } from "../src/backends/judge.ts";
 import * as checks from "../src/checks.ts";
+import { enableLocal } from "../src/cli.ts";
+import { loadConfig } from "../src/config.ts";
 import { Context } from "../src/diffs.ts";
+import { useTmp } from "./helpers.ts";
+
+const tmp = useTmp();
 
 function tok(text: string, p = 1.0, alts: Record<string, number> = {}) {
 	return { token: text, logprob: Math.log(p), top_logprobs: Object.entries(alts).map(([t, q]) => ({ token: t, logprob: Math.log(q) })) };
@@ -130,4 +138,12 @@ test("criteria per question type", () => {
 
 test("unknown format", () => {
 	expect(() => new JudgeBackend({ format: "gpt" })).toThrow("format must be one of guardian, selene");
+});
+
+test("judge preset", () => {
+	mkdirSync(join(tmp(), ".acc"));
+	writeFileSync(join(tmp(), ".acc/config.toml"), enableLocal("", "judge", "llama-server"));
+	const backend = getBackend(loadConfig(tmp()), "claude") as JudgeBackend;
+	expect([backend.name, backend.format, backend.device]).toEqual(["judge", "guardian", "gpu"]);
+	expect(backend.model).toContain("granite-guardian");
 });

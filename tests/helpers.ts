@@ -5,6 +5,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSyn
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { BackendError } from "../src/backends/base.ts";
+import type { Io } from "../src/cli.ts";
 import { type Config, loadConfig } from "../src/config.ts";
 
 export const FIXTURES = join(import.meta.dir, "fixtures");
@@ -207,6 +208,21 @@ export function assistantStream(text: string | null = null, message: Record<stri
 	]
 		.map((e) => JSON.stringify(e))
 		.join("\n")}\n`;
+}
+
+/** An Io that records output, like pytest's capsys. */
+export function captureIo(cwd: string, stdin = ""): Io & { stdout: string[]; stderr: string[]; text(): string } {
+	const stdout: string[] = [];
+	const stderr: string[] = [];
+	return {
+		cwd,
+		stdout,
+		stderr,
+		out: (t) => stdout.push(t),
+		err: (t) => stderr.push(t),
+		readStdin: async () => stdin,
+		text: () => stdout.join("\n"),
+	};
 }
 
 /** The BackendError a call throws (fails the test if it throws nothing or something else). */

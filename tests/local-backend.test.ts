@@ -1,13 +1,16 @@
 /** The local backend against a stand-in OpenAI-compatible server, and its config switch. */
 import { afterEach, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { chmodSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { join } from "node:path";
 import { BackendError } from "../src/backends/base.ts";
-import { LocalBackend, parseOutput } from "../src/backends/local.ts";
+import { getBackend } from "../src/backends/index.ts";
+import { DEFAULT_URL, DEVICE_ARGS, LocalBackend, parseOutput } from "../src/backends/local.ts";
 import * as checks from "../src/checks.ts";
-import { useTmp } from "./helpers.ts";
+import { enableLocal, main, setKeys } from "../src/cli.ts";
+import { loadConfig } from "../src/config.ts";
+import { captureIo, makeRepo, useTmp } from "./helpers.ts";
 
 const tmp = useTmp();
 const SCHEMA = { type: "object", properties: { checks: { type: "object" } }, required: ["checks"] };
@@ -159,6 +162,44 @@ test("starts the server when it is down", async () => {
 	}
 });
 
+test("setKeys edits only its table", () => {
+	const text = '[agents.claude]\nbackend = "fake"\n\n[run]\n# backend = "local"   # note\ntimeout_seconds = 90\n';
+	const out = setKeys(text, "run", { backend: '"local"' });
+	expect(out).toBe('[agents.claude]\nbackend = "fake"\n\n[run]\nbackend = "local"\ntimeout_seconds = 90\n');
+	expect(setKeys(out, "run", { backend: '"local"' })).toBe(out);
+	expect(setKeys("[run]\nparallel = 2\n", "run", { backend: '"x"' })).toBe('[run]\nbackend = "x"\nparallel = 2\n');
+	expect(setKeys("", "run", { backend: '"x"' })).toBe('[run]\nbackend = "x"\n');
+	// defaults only fill missing keys
+	expect(setKeys('[t]\nurl = "mine"\n', "t", {}, { url: '"d"', server: '"s"' })).toBe('[t]\nserver = "s"\nurl = "mine"\n');
+});
+
+test.each([
+	["cpu", "local"],
+	["gpu", "local"],
+	["tiny", "tiny"],
+])("enableLocal preset %s", (preset, backend) => {
+	mkdirSync(join(tmp(), ".acc"));
+	writeFileSync(join(tmp(), ".acc/config.toml"), enableLocal("[run]\nparallel = 2\n", preset, "llama-server"));
+	const cfg = loadConfig(tmp());
+	expect(cfg.backendFor("claude")).toBe(backend);
+	if (backend === "local") {
+		const local = new LocalBackend(cfg.backendSettings("local"));
+		expect(local.device).toBe(preset);
+		expect(local.server).toBe("llama-server");
+		const argv = local.serverArgv();
+		expect(argv.slice(argv.length - DEVICE_ARGS[preset].length - 4, argv.length - 4)).toEqual(DEVICE_ARGS[preset]);
+	}
+});
+
+test("switching presets keeps url and server", () => {
+	const text = enableLocal("", "cpu", "/opt/llama-server").replace(DEFAULT_URL, "http://127.0.0.1:9000");
+	const out = enableLocal(text, "gpu", "llama-server");
+	expect(out).toContain('device = "gpu"');
+	expect(out).toContain('url = "http://127.0.0.1:9000"');
+	expect(out).toContain('server = "/opt/llama-server"');
+	expect(out.split("[backends.local]").length - 1).toBe(1);
+});
+
 test("unknown device", () => {
 	expect(() => new LocalBackend({ device: "tpu" })).toThrow("device must be one of cpu, gpu");
 });
@@ -169,6 +210,18 @@ test("refuses a server with another model", async () => {
 	await expect(new LocalBackend({ url: s.url, model: "mine/model" }).ask("s", "p", "", SCHEMA, 5)).rejects.toThrow(
 		"serves other/model, not mine/model",
 	);
+});
+
+test("init --local", async () => {
+	const repo = makeRepo(tmp());
+	const io = captureIo(repo.path);
+	expect(await main(["init", "--local"], io)).toBe(0);
+	const cfg = loadConfig(repo.path);
+	expect(cfg.backendFor("claude")).toBe("local");
+	expect(cfg.backendFor("omp")).toBe("local");
+	expect(cfg.backendFor("pi")).toBe("local");
+	expect(getBackend(cfg, "omp").name).toBe("local");
+	expect(io.text()).toContain("set run.backend");
 });
 
 // ── confidence from token probabilities ──────────────────────────────────────
