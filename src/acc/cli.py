@@ -15,6 +15,8 @@ from pathlib import Path
 from . import checks as checks_mod
 from . import grading, omp_setup, ops
 from .backends import BackendError, get_backend
+from .backends.judge import RECOMMENDED_MODELS as JUDGE_MODELS
+from .backends.judge import JudgeBackend
 from .backends.local import DEFAULT_URL, RECOMMENDED_MODELS, LocalBackend, list_devices, server_log
 from .backends.tiny import DEFAULT_FILE as TINY_FILE
 from .backends.tiny import RECOMMENDED_MODEL as TINY_MODEL
@@ -241,15 +243,20 @@ def set_keys(text: str, table: str, values: dict[str, str], defaults: dict[str, 
     return text[:head.end()] + body + text[stop:]
 
 
-LOCAL_PRESETS = ("cpu", "gpu", "tiny")
+LOCAL_PRESETS = ("cpu", "gpu", "judge", "tiny")
 
 
 def enable_local(text: str, preset: str, server: str) -> str:
-    """Config text that runs every check on a local model: `cpu` or `gpu` (llama-server) or `tiny`."""
+    """Config text that runs every check on a local model: a chat model in llama-server on the `cpu`
+    or `gpu`, a `judge` model in llama-server on the GPU, or the `tiny` in-process classifier."""
     q = json.dumps
     if preset == "tiny":
         text = set_keys(text, "backends.tiny", {"model": q(TINY_MODEL), "file": q(TINY_FILE)})
         return set_keys(text, "run", {"backend": q("tiny")})
+    if preset == "judge":
+        text = set_keys(text, "backends.judge", {"format": q("guardian"), "model": q(JUDGE_MODELS["guardian"])},
+                        defaults={"url": q(DEFAULT_URL), "device": q("gpu"), "server": q(server)})
+        return set_keys(text, "run", {"backend": q("judge")})
     text = set_keys(text, "backends.local", {"device": q(preset), "model": q(RECOMMENDED_MODELS[preset])},
                     defaults={"url": q(DEFAULT_URL), "server": q(server)})
     return set_keys(text, "run", {"backend": q("local")})
@@ -258,7 +265,7 @@ def enable_local(text: str, preset: str, server: str) -> str:
 def _init_local(cfg_path: Path, preset: str, llama: str | None) -> None:
     server = home_relative(str(Path(llama).absolute())) if llama else "llama-server"
     cfg_path.write_text(enable_local(cfg_path.read_text(), preset, server))
-    backend = "tiny" if preset == "tiny" else "local"
+    backend = preset if preset in ("tiny", "judge") else "local"
     print(f'set run.backend = "{backend}" in {cfg_path.name}: every agent now uses the local {preset} model')
     if preset == "tiny":
         try:
@@ -273,7 +280,7 @@ def _init_local(cfg_path: Path, preset: str, llama: str | None) -> None:
         print("warning: `llama-server` not found on PATH. Install llama.cpp "
               "(https://github.com/ggml-org/llama.cpp/releases), then set backends.local.server "
               "to its absolute path.")
-    elif preset == "gpu":
+    elif preset in ("gpu", "judge"):
         devices = list_devices(llama)
         if devices:
             print(f"llama-server sees: {', '.join(devices)}")
@@ -361,8 +368,8 @@ def cmd_doctor(a: argparse.Namespace) -> int:
             report(bool(v) and v >= MIN_HOOK_VERSION,
                    f"Claude Code {ver or '?'}; hook `args`/`if`/`onFailure` need "
                    f"{'.'.join(map(str, MIN_HOOK_VERSION))}+", warn_only=True)
-    elif name == "local":
-        local = LocalBackend(cfg.backend_settings("local"))
+    elif name in ("local", "judge"):
+        local = (LocalBackend if name == "local" else JudgeBackend)(cfg.backend_settings(name))
         up = local.ready()
         report(up, f"model server at {local.url} " + (
             "is ready" if up else "is not running" + (" (acc will start it)" if local.server else "")),
@@ -506,7 +513,9 @@ def build_parser() -> argparse.ArgumentParser:
                          "~/.omp/agent/extensions and print the omp setup")
     sp.add_argument("--local", nargs="?", const="cpu", choices=LOCAL_PRESETS,
                     help="run every check on a local model instead of the agent's own: cpu (default) "
-                         "or gpu run llama-server; tiny runs a small ONNX classifier in-process")
+                         "or gpu run a chat model in llama-server, judge runs a yes/no judge model "
+                         "(Granite Guardian) in llama-server on the GPU, tiny runs a small ONNX "
+                         "classifier in-process")
     sp.set_defaults(fn=cmd_init)
 
     sp = sub.add_parser("doctor", help="verify backend, auth, config and check files")

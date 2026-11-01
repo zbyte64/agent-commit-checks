@@ -93,13 +93,14 @@ Put the **MCP server** in `.omp/mcp.json` (project) or `~/.omp/agent/mcp.json` (
 
 Instead of the agent's own model, every check can run on a small decision model on this machine.
 It needs no login or network after the first download, and the diff never leaves the machine.
-There are three options:
+There are four options:
 
 | `acc init --local …` | Runs | Needs |
 | --- | --- | --- |
 | `tiny` | a small ONNX model in-process, as a classifier | the `tiny` extra (onnxruntime, ~35 MB) |
 | `cpu` (default) | a small chat model in llama.cpp's `llama-server`, on the CPU | `llama-server` (any build) |
 | `gpu` | a larger chat model in `llama-server`, on the GPU | a GPU build: Vulkan (AMD, Intel), CUDA or ROCm |
+| `judge` | a yes/no judge model (Granite Guardian 4.1 8B) in `llama-server`, on the GPU | a GPU build, ~5 GB of model |
 
 ```sh
 acc init --local gpu   # sets run.backend and the backend's model in .acc/config.toml
@@ -131,6 +132,22 @@ says how to stop it. `acc doctor` lists the GPUs a `llama-server` build can use.
 OpenAI-style `/v1/chat/completions` that supports `json_schema` response formats also works, e.g.
 Ollama with `url = "http://127.0.0.1:11434"`, an Ollama tag as `model`, and `server = ""`.
 Confidence is measured only when the server returns `logprobs`.
+
+**judge.** The `judge` backend runs a model trained to judge one criterion with yes or no, in
+`llama-server` like `cpu` and `gpu`. It asks a `bool` check as one criterion ("the correct answer
+to the question is yes") and a `choice` or `score` check as one criterion per option. It reads
+P(yes) from the token probabilities, so the answer to a `bool` check is a probability and the
+confidence of a `choice` is the probability of its verdict. The data comes first in each prompt,
+so the server reuses it from its cache for each option.
+
+```toml
+[backends.judge]
+format = "guardian"   # or "selene" (Atla Selene 1 Mini, which writes its reasoning first)
+model = "ibm-granite/granite-guardian-4.1-8b-GGUF:Q4_K_M"
+device = "gpu"
+url = "http://127.0.0.1:8763"
+server = "~/.local/bin/llama-server"
+```
 
 **tiny.** The `tiny` backend runs an ONNX export of a ChatML model (SmolLM2, Qwen2.5, Qwen3) with
 onnxruntime, in the acc process, with no server. Install acc with the extra:

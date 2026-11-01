@@ -144,7 +144,11 @@ class LocalBackend:
 
     def ask(self, system: str, prompt: str, stdin: str, schema: dict, timeout: float) -> dict:
         self.ensure_server()
-        body = json.dumps(self.request(system, prompt, stdin, schema)).encode()
+        return parse_output(self.post(self.request(system, prompt, stdin, schema), timeout), schema)
+
+    def post(self, request: dict, timeout: float) -> str:
+        """POST a chat completion request; returns the raw response body."""
+        body = json.dumps(request).encode()
         req = urllib.request.Request(f"{self.url}/v1/chat/completions", data=body,
                                      headers={"Content-Type": "application/json"})
         try:
@@ -158,7 +162,7 @@ class LocalBackend:
             raise BackendError(f"local model timed out after {timeout:.0f}s") from None
         except OSError as e:
             raise BackendError(f"local model server at {self.url} failed: {e}") from None
-        return parse_output(raw, schema)
+        return raw
 
 
 def list_devices(server: str) -> list[str]:
