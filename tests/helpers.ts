@@ -64,7 +64,7 @@ export class Repo {
 		const acc = join(this.path, ".acc");
 		mkdirSync(join(acc, "checks"), { recursive: true });
 		const base =
-			'[agents.claude]\nbackend = "fake"\n\n[agents.omp]\nbackend = "fake"\n\n' +
+			'[agents.claude]\nbackend = "fake"\n\n[agents.omp]\nbackend = "fake"\n\n[agents.pi]\nbackend = "fake"\n\n' +
 			'[backends.fake]\nanswers = "answers.json"\n';
 		writeFileSync(join(acc, "config.toml"), base + (opts.config ?? ""));
 		for (const [cid, text] of Object.entries(opts.checks ?? {})) writeFileSync(join(acc, "checks", `${cid}.toml`), text);

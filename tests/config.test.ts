@@ -61,5 +61,6 @@ describe("config", () => {
 		expect(cfg.backendFor("omp")).toBe("claude"); // an explicit per-agent route still wins
 		writeFileSync(join(tmp(), ".acc/config.toml"), "");
 		expect(loadConfig(tmp()).backendFor("claude")).toBe("claude");
+		expect(loadConfig(tmp()).backendFor("pi")).toBe("pi");
 	});
 });

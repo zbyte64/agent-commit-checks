@@ -19,6 +19,7 @@ export const DEFAULTS: Table = {
 	backends: {
 		claude: { command: "claude", model: "haiku" },
 		omp: { command: "omp", model: "@decision" },
+		pi: { command: "pi", model: "anthropic/claude-haiku-4-5" },
 		// Defaults for the local backends live in backends/local.ts, judge.ts and tiny.ts.
 		local: {},
 		judge: {},

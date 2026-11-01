@@ -6,6 +6,7 @@ import { FakeBackend } from "./fake.ts";
 import { JudgeBackend } from "./judge.ts";
 import { LocalBackend } from "./local.ts";
 import { OmpBackend } from "./omp.ts";
+import { PiBackend } from "./pi.ts";
 import { TinyBackend } from "./tiny.ts";
 
 export { type Backend, BackendError } from "./base.ts";
@@ -18,6 +19,8 @@ export function getBackend(cfg: Config, agent: string, override: string | null =
 			return new ClaudeBackend(settings);
 		case "omp":
 			return new OmpBackend(settings, cfg.root);
+		case "pi":
+			return new PiBackend(settings, cfg.root);
 		case "local":
 			return new LocalBackend(settings);
 		case "judge":

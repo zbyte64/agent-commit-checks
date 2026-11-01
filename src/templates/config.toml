@@ -11,6 +11,10 @@ model = "haiku"
 command = "__OMP__"
 model = "@decision"        # omp role alias: set modelRoles.decision in ~/.omp/agent/config.yml
 
+[backends.pi]
+command = "__PI__"
+model = "anthropic/claude-haiku-4-5"  # provider/model; pi has no model roles
+
 [backends.local]
 # A small decision model on this machine, served by llama.cpp's llama-server (see the
 # README's "Local model" section). `acc init --local [cpu|gpu|judge|tiny]` turns a local
