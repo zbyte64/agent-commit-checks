@@ -103,15 +103,19 @@ export class LocalBackend implements Backend {
 		if (served?.length && !served.includes(this.model)) {
 			throw new BackendError(
 				`the server at ${this.url} serves ${served.join(", ")}, not ${this.model}; ` +
-					`stop it (pkill -f 'llama-server.*--port ${new URL(this.url).port || null}') ` +
+					`stop it (pkill -f 'llama-server.*--port ${this.port}') ` +
 					"and acc will start the configured model",
 			);
 		}
 	}
 
+	/** The port acc starts the server on: the url's, or 80 when it names none. */
+	get port(): string {
+		return new URL(this.url).port || "80";
+	}
+
 	serverArgv(): string[] {
 		const parts = new URL(this.url);
-		const port = parts.port || "80";
 		return [
 			this.server,
 			"-hf",
@@ -121,7 +125,7 @@ export class LocalBackend implements Backend {
 			"--host",
 			parts.hostname || "127.0.0.1",
 			"--port",
-			port,
+			this.port,
 			...DEVICE_ARGS[this.device],
 			...this.serverArgs,
 		];
